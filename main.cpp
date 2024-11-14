@@ -62,9 +62,18 @@ void call_me(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char *packe
 }
 
 int main(int argc, char const *argv[]) {
-    const char *device = "wlo1"; // remember to replace this with your device name
+    char device[50] = "";
+    int packets_count = 10;
+    char filters[100] = "port 80";
+
+    if (argc >= 2) {
+        strcpy(device, argv[1]);
+    } else {
+        printf("Falta el nombre de la interfaz como argumento\n");
+        exit(0);
+    }
+
     char error_buffer[PCAP_ERRBUF_SIZE];
-    int packets_count = 5;
 
     pcap_t *capdev = pcap_open_live(device, BUFSIZ, 0, -1, error_buffer);
 
@@ -84,6 +93,17 @@ int main(int argc, char const *argv[]) {
             break;
         default:
             link_hdr_length = 0;
+    }
+
+    struct bpf_program bpf;
+    bpf_u_int32 netmask;
+
+    if (pcap_compile(capdev, &bpf, filters, 0, netmask) == PCAP_ERROR) {
+        printf("ERR: pcap_compile() %s", pcap_geterr(capdev));
+    }
+
+    if (pcap_setfilter(capdev, &bpf)) {
+        printf("ERR: pcap_setfilter() %s", pcap_geterr(capdev));
     }
 
     if (pcap_loop(capdev, packets_count, call_me, (u_char *)NULL)) {
