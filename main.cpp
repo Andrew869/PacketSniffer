@@ -63,8 +63,9 @@ void call_me(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char *packe
 
 int main(int argc, char const *argv[]) {
     char device[50] = "";
-    int packets_count = 10;
-    char filters[100] = "port 80";
+    int packets_count = -1;
+    // char filters[100] = "port 80";
+    char filters[100] = "";
 
     if (argc >= 2) {
         strcpy(device, argv[1]);
