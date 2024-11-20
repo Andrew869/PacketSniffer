@@ -14,10 +14,50 @@
 using namespace std;
 using namespace chrono;
 
-void ExitProgram();
-void ExitProgram(int signum);
+class window {
+public:
+    window(int height, int width, int y, int x) {
+        this->height = height;
+        this->width = width;
+        this->y = y;
+        this->x = x;
+        win = newwin(height, width, y, x);
+    }
 
-int main() {
+    void init() {
+        box(win, 0, 0);
+        wmove(win, 1, 1);
+    }
+
+    void refresh() {
+        wrefresh(win);
+    }
+
+    WINDOW *win;
+    int width, height;
+    int y, x;
+};
+
+void InitDisplay(int &height, int &width){
+    initscr();            // Inicializa ncurses
+    start_color();
+    cbreak();             // Deshabilita el buffering de línea
+    noecho();             // No mostrar la entrada de teclas
+    keypad(stdscr, TRUE); // Habilitar teclas especiales
+    curs_set(0);          // Ocultar el cursor
+    nodelay(stdscr, TRUE);// No bloquear en getch()
+    //timeout(50);         // Esperar 100ms en cada iteración
+    getmaxyx(stdscr, height, width);
+}
+
+void EndDisplay() {
+    curs_set(1);
+    endwin();
+    printf("bye bye");
+    exit(0);
+}
+
+int nomain() {
     
     // FILE *fp = popen("ls -l", "r"); // Ejecutar el comando y abrir una tubería de lectura
 
@@ -36,9 +76,10 @@ int main() {
     int width, height;
     WINDOW *win1, *win2, *win3;
     vector<string> list;
-    signal(SIGINT, ExitProgram);
-    signal(SIGWINCH, ExitProgram);
-    signal(SIGKILL, ExitProgram);
+    string device = "wlo1";
+    // signal(SIGINT, ExitProgram);
+    // signal(SIGWINCH, ExitProgram);
+    // signal(SIGKILL, ExitProgram);
 
     initscr();            // Inicializa ncurses
     start_color();
@@ -111,7 +152,7 @@ int main() {
         int ch = getch();
         switch (ch) {
             case 'q':
-                ExitProgram();
+                // ExitProgram();
                 break;
             case 'a':
                 endwin();
@@ -127,15 +168,4 @@ int main() {
     endwin();
 
     return 0;
-}
-
-void ExitProgram(int signum) {
-    ExitProgram();
-}
-
-void ExitProgram() {
-    curs_set(1);
-    endwin();
-    printf("bye bye");
-    exit(0);
 }

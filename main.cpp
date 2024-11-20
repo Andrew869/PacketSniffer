@@ -8,75 +8,113 @@
 #include <netinet/ip_icmp.h>
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
+#include <vector>
+
+#include "display.hpp"
+
+using namespace std;
+
+class packetData {
+public:
+    const u_char *buffer;
+    int length;
+
+    packetData(const u_char* buffer, int length) {
+        this->buffer = buffer;
+        this->length = length;
+    }
+private:
+};
 
 int link_hdr_length = 0;
+window *win1;
+vector<packetData> packets;
+int max_y, max_x;
 
-void call_me(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char *packetd_ptr) {
-    packetd_ptr += link_hdr_length;
-    struct ip *ip_hdr = (struct ip *)packetd_ptr;
- 
-    char packet_srcip[INET_ADDRSTRLEN];         // source ip address
-    char packet_dstip[INET_ADDRSTRLEN];         // destination ip address
-    strcpy(packet_srcip, inet_ntoa(ip_hdr->ip_src));
-    strcpy(packet_dstip, inet_ntoa(ip_hdr->ip_dst));
-    int packet_id = ntohs(ip_hdr->ip_id),       // identification
-    packet_ttl = ip_hdr->ip_ttl,                // Time To Live
-    packet_tos = ip_hdr->ip_tos,                // Type Of Service
-    packet_len = ntohs(ip_hdr->ip_len),         // header length + data length
-    packet_hlen = ip_hdr->ip_hl;                // header length
+void InitDisplay(int &height, int &width);
+void EndDisplay();
 
-    printf("**************************************************************************\n");
-    printf("ID: %d | SRC: %s | DST: %s | TOS: 0x%x | TTL: %d\n", packet_id, packet_srcip, packet_dstip, packet_tos, packet_ttl);
+void packetManager(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char *packetd_ptr) {
+    packetData data(packetd_ptr, pkthdr->len);
+    packets.push_back(data);
 
-    packetd_ptr += (4 * packet_hlen);
-    int protocol_type = ip_hdr->ip_p;
+    int length = packets.size();
+    int index = 0;
+    
+    int cur_y = length < win1->height - 2 ? length : win1->height - 2;
+    for (size_t y = 1; y <= cur_y; y++) {
+        index = length - y;
 
-    struct tcphdr *tcp_header;
-    struct udphdr *udp_header;
-    struct icmp *icmp_header;
-    int src_port, dst_port;
+        const struct ip* ip_header;   // Estructura para el encabezado IP
+        int ip_header_length;         // Longitud del encabezado IP
 
-    switch (protocol_type) {
-      case IPPROTO_TCP:
-        tcp_header = (struct tcphdr *)packetd_ptr;
-        src_port = tcp_header->th_sport;
-        dst_port = tcp_header->th_dport;
-        printf("PROTO: TCP | FLAGS: %c/%c/%c | SPORT: %d | DPORT: %d |\n",
-               (tcp_header->th_flags & TH_SYN ? 'S' : '-'),
-               (tcp_header->th_flags & TH_ACK ? 'A' : '-'),
-               (tcp_header->th_flags & TH_URG ? 'U' : '-'), src_port, dst_port);
-        break;
-      case IPPROTO_UDP:
-        udp_header = (struct udphdr *)packetd_ptr;
-        src_port = udp_header->uh_sport;
-        dst_port = udp_header->uh_dport;
-        printf("PROTO: UDP | SPORT: %d | DPORT: %d |\n", src_port, dst_port);
-        break;
-      case IPPROTO_ICMP:
-        icmp_header = (struct icmp *)packetd_ptr;
-        int icmp_type = icmp_header->icmp_type;
-        int icmp_type_code = icmp_header->icmp_code;
-        printf("PROTO: ICMP | TYPE: %d | CODE: %d |\n", icmp_type, icmp_type_code);
-        break;
+        // Saltar el encabezado Ethernet si es necesario (usualmente 14 bytes)
+
+        // Obtener el encabezado IP desde los datos del paquete
+        ip_header = (struct ip*)(packets[index].buffer + 14);  // +14 para saltar el encabezado Ethernet (si presente)
+        ip_header_length = ip_header->ip_hl * 4; // Longitud del encabezado IP en bytes (ip_hl está en palabras de 4 bytes)
+
+        // Obtener direcciones IP de origen y destino
+        char source_ip[INET_ADDRSTRLEN];
+        char dest_ip[INET_ADDRSTRLEN];
+
+        inet_ntop(AF_INET, &(ip_header->ip_src), source_ip, INET_ADDRSTRLEN); // IP de origen
+        inet_ntop(AF_INET, &(ip_header->ip_dst), dest_ip, INET_ADDRSTRLEN);   // IP de destino
+
+        // Obtener protocolo
+        int protocol = ip_header->ip_p; // Campo ip_p contiene el número de protocolo (TCP, UDP, etc.)
+        string protText;
+        switch (protocol) {
+            case IPPROTO_TCP:
+                protText = "TCP";
+                break;
+            case IPPROTO_UDP:
+                protText = "UDP";
+                break;
+            case IPPROTO_ICMP:
+                protText = "ICMP";
+                break;
+            case IPPROTO_IP:
+                protText = "IP";
+                break;
+            default:
+                protText = "?";
+                break;
+        }
+
+        // Obtener tamaño del paquete
+        int packet_size = ntohs(ip_header->ip_len);
+
+        mvwprintw(win1->win, y, 1, "%20s\t%20s\t%20s\t%20d", source_ip, dest_ip, protText.c_str(), packet_size);
     }
+    win1->refresh();
 }
 
 int main(int argc, char const *argv[]) {
-    char device[50] = "";
+    pcap_if_t *alldevsp , *device;
+    char errbuf[100] , *devname , devs[100][100];
+    int count = 0;
+
     int packets_count = -1;
-    // char filters[100] = "port 80";
+    // char filters[100] = "port 80";InitDisplay
+    // char filters[100] = "dst host 192.168.0.15 and udp";
     char filters[100] = "";
 
-    if (argc >= 2) {
-        strcpy(device, argv[1]);
-    } else {
-        printf("Falta el nombre de la interfaz como argumento\n");
-        exit(0);
-    }
+    if( pcap_findalldevs( &alldevsp , errbuf) ) {
+		printf("Error finding devices : %s" , errbuf);
+		exit(1);
+	}
+
+    for(device = alldevsp ; device != NULL ; device = device->next) {
+		if(device->name != NULL) {
+			strcpy(devs[count] , device->name);
+		}
+		count++;
+	}
 
     char error_buffer[PCAP_ERRBUF_SIZE];
-
-    pcap_t *capdev = pcap_open_live(device, BUFSIZ, 0, -1, error_buffer);
+    devname = devs[0];
+    pcap_t *capdev = pcap_open_live(devname, 65535, 1, -1, error_buffer);
 
     int link_hdr_type = pcap_datalink(capdev);
 
@@ -107,10 +145,18 @@ int main(int argc, char const *argv[]) {
         printf("ERR: pcap_setfilter() %s", pcap_geterr(capdev));
     }
 
-    if (pcap_loop(capdev, packets_count, call_me, (u_char *)NULL)) {
-        printf("ERR: pcap_loop() failed!\n");
+    InitDisplay(max_y, max_x);
+    refresh();
+    win1 = new window(max_y / 2, max_x, 0, 0);
+    win1->init();
+    win1->refresh();
+
+    if (pcap_loop(capdev, packets_count, packetManager, (u_char *)NULL)) {
+        // printf("ERR: pcap_loop() failed!\n");
         exit(1);
     }
+
+    EndDisplay();
 
     return 0;
 }
