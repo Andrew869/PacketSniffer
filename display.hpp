@@ -1,16 +1,3 @@
-#include <ncurses.h>
-#include <sys/ioctl.h>
-#include <signal.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <cstdio>
-#include <iostream>
-#include <vector>
-#include <ctime>    // Para srand y time
-#include <cstdlib>
-#include <chrono>
-
 using namespace std;
 using namespace chrono;
 
@@ -21,12 +8,24 @@ public:
         this->width = width;
         this->y = y;
         this->x = x;
+        max_y = height - 2;
         win = newwin(height, width, y, x);
     }
 
     void init() {
         box(win, 0, 0);
+        //         1         2         3         4         5         6         7 
+        //1234567890123456789012345678901234567890123456789012345678901234567890
+        // [No.]    [Time]   [Source]        [Destination]   [Prot]  [Len]
+        //12345    4.721809  192.168.115.199 192.168.115.199  ICMP    9999
+        mvwprintw(win, 0, 2, "[No.]");
+        mvwprintw(win, 0, 9, "[Time]");
+        mvwprintw(win, 0, 20, "[Source]");
+        mvwprintw(win, 0, 36, "[Destination]");
+        mvwprintw(win, 0, 52, "[Prot]");
+        mvwprintw(win, 0, 60, "[Len]");
         wmove(win, 1, 1);
+        refresh();
     }
 
     void refresh() {
@@ -35,6 +34,7 @@ public:
 
     WINDOW *win;
     int width, height;
+    int max_y;
     int y, x;
 };
 
@@ -46,8 +46,10 @@ void InitDisplay(int &height, int &width){
     keypad(stdscr, TRUE); // Habilitar teclas especiales
     curs_set(0);          // Ocultar el cursor
     nodelay(stdscr, TRUE);// No bloquear en getch()
-    //timeout(50);         // Esperar 100ms en cada iteración
+    timeout(100);         // Esperar 100ms en cada iteración
     getmaxyx(stdscr, height, width);
+
+    init_pair(1, COLOR_BLACK, COLOR_WHITE);
 }
 
 void EndDisplay() {
