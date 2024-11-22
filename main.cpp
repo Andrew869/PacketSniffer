@@ -1,6 +1,5 @@
 #include "includes.hpp"
 #include "display.hpp"
-#include "selectionList.hpp"
 
 #define cmvprintw(c, y, x, format, ...) \
     do { \
@@ -275,7 +274,7 @@ void draw_list() {
             // Obtener tamaño del paquete
             int packet_size = ntohs(ip_header->ip_len);
 
-            mvwprintw(win1->win, i + 1, 1, "%5d %11f  %-15s %-15s  %4s    %4d", option_index, packets[option_index].elapsed_seconds.count(), source_ip, dest_ip, protText.c_str(), packet_size);
+            mvwprintw(win1->win, i + 1, 1, "%5d %11f  %-15s %-15s  %4s  %6d", option_index, packets[option_index].elapsed_seconds.count(), source_ip, dest_ip, protText.c_str(), packet_size);
             wattroff(win1->win, A_REVERSE);
         }
     }
