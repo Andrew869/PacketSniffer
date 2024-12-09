@@ -1,9 +1,6 @@
-using namespace std;
-using namespace chrono;
-
-class window {
+class Window {
 public:
-    window(int height, int width, int y, int x){
+    Window(int height, int width, int y, int x){
         this->height = height;
         this->width = width;
         this->y = y;
@@ -79,9 +76,9 @@ public:
 //     subwindow subw;
 // };
 
-class subwindow : public window {
+class SubWindow : public Window {
 public:
-    subwindow(int height, int width, int y, int x) : window(height, width, y, x) {
+    SubWindow(int height, int width, int y, int x) : Window(height, width, y, x) {
         // win = subwin(parent, height, width, y, x);
     }
 
@@ -90,9 +87,9 @@ public:
     }
 };
 
-class parentwin : public window {
+class ParentWin : public Window {
 public:
-    parentwin(int height, int width, int y, int x) : window(height, width, y, x), subw(height - 2, width - 2, 1, 1){
+    ParentWin(int height, int width, int y, int x) : Window(height, width, y, x), subw(height - 2, width - 2, 1, 1){
     // parentwin(int height, int width, int y, int x) : window(height, width, y, x){
         this->win = newwin(height, width, y, x);
         // subw = new subwindow(this->win, height - 2, width - 2, 1, 1);
@@ -104,7 +101,7 @@ public:
         refresh();
     }
 
-    subwindow subw;
+    SubWindow subw;
 };
 
 void InitDisplay(int &height, int &width){
@@ -239,4 +236,26 @@ int nomain() {
     endwin();
 
     return 0;
+}
+
+ParentWin *win1, *win2, *win3;
+
+void PrintTitles(){
+    //         1         2         3         4         5         6         7 
+    //1234567890123456789012345678901234567890123456789012345678901234567890
+    // [No.]    [Time]   [Source]        [Destination]   [Prot]  [Len]
+    //12345 1234.678901  192.168.115.199 192.168.115.199  ICMP  99999
+    //  111   19.210  20.190.157.96   192.168.0.8       TCP   1434│  
+    //01 9a 6f 54 00 00 01 01 08 0a bc 51 af 3a 15 95   ..oT.......Q.:..
+    mvwprintw(win1->win, 0, 2, "[No.]");
+    mvwprintw(win1->win, 0, 9, "[Time]");
+    mvwprintw(win1->win, 0, 20, "[Source]");
+    mvwprintw(win1->win, 0, 36, "[Destination]");
+    mvwprintw(win1->win, 0, 52, "[Prot]");
+    mvwprintw(win1->win, 0, 60, "[Len]");
+    // wmove(win, 1, 1);
+    // int h, w;
+    // getmaxyx(win, h, w);
+    // mvprintw(0, 0, "%d,%d", h, w);
+    win1->refresh();
 }
