@@ -20,3 +20,10 @@
 #include <ctime>                // Manipulación de fechas y tiempos
 #include <cstdlib>              // Funciones de la biblioteca estándar de C
 #include <chrono>               // Utilidades de tiempo en C++
+#include <sstream>              // Para std::stringstream
+#include <iomanip>              // Para std::setw
+#include <memory>
+
+
+using namespace std;
+using namespace chrono;
