@@ -96,10 +96,11 @@ public:
     // void (*MoveManager)(vector<u_char>&, bpf_u_int32);
 
     DerList<DataBlocks>* rawList;
-    DerList<PacketData>* infoList;
+    vector<DataBlocks> generatedBlocks;
+
+    DerList<string>* infoList;
     vector<string> output;
 
-    vector<DataBlocks> generatedBlocks;
     // DerList<DataBlocks>* rawList;
     // std::unique_ptr<DerList<DataBlocks>> rawList;
 
@@ -136,7 +137,7 @@ public:
 
         for (size_t i = 0; i < len; i += 16) {
             DataBlocks block;
-            std::stringstream hexStream, rawStream;
+            ostringstream hexStream, rawStream;
 
             for (size_t j = i; j < i + 16 && j < len; ++j) {
                 hexStream << std::hex << std::setw(2) << std::setfill('0') 
@@ -157,65 +158,101 @@ public:
     }
 
     vector<string>& getInfo(){
-        vector<string> output;
-        list=this->list; 
-        int option_index = this->scroll_start ;
-        PacketData& packet = list[option_index];
-    const u_char* data = packet.data.data();
-    bpf_u_int32 length = packet.length;
+        output.clear();
+        PacketData& packet = list[this->current_selection];
+        const u_char* data = packet.data.data();
+        bpf_u_int32 length = packet.length;
 
     
-    // Cabecera Ethernet
-    if (length >= sizeof(struct ethhdr)) {
-        struct ethhdr* eth = (struct ethhdr*)data;
-        output.push_back( "Ethernet Header:");
-        output.push_back( "   |-Destination Address : "+to_string( eth->h_dest[0])+to_string(eth->h_dest[1]) + to_string(eth->h_dest[2])+to_string(eth->h_dest[3])+to_string(eth->h_dest[4]) +to_string(eth->h_dest[5]) );
-                output.push_back( "    |-Source Address      :"+to_string( eth->h_source[0])+to_string(eth->h_source[1]) + to_string(eth->h_source[2])+to_string(eth->h_source[3])+to_string(eth->h_source[4]) +to_string(eth->h_source[5]) );
+        // Cabecera Ethernet
+        if (length >= sizeof(struct ethhdr)) {
+            struct ethhdr* eth = (struct ethhdr*)data;
+            output.push_back( "Ethernet Header:");
+            ostringstream oss;
+
+            // Formatear y agregar la dirección de destino
+            oss << "   |-Destination Address : ";
+            for (int i = 0; i < 6; ++i) {
+                oss << std::hex << std::uppercase << std::setw(2) << std::setfill('0') << static_cast<int>( eth->h_dest[0]);
+                if (i < 5) oss << "-";
+            }
+            output.push_back(oss.str());
+            oss.str(""); // Limpiar el contenido del stringstream
+            oss.clear(); // Restablecer flags
+
+            // Formatear y agregar la dirección de origen
+            oss << "   |-Source Address      : ";
+            for (int i = 0; i < 6; ++i) {
+                oss << std::hex << std::uppercase << std::setw(2) << std::setfill('0') << static_cast<int>(eth->h_source[0]);
+                if (i < 5) oss << "-";
+            }
+            output.push_back(oss.str());
 
 
-        output.push_back( "   |-Protocol            : "+to_string(ntohs(eth->h_proto)) );
-    } else {
-        output.push_back( "Incomplete Ethernet Header");
-    }
-
-    // Cabecera IP
-    if (length > sizeof(struct ethhdr)) {
-        struct iphdr* iph = (struct iphdr*)(data + sizeof(struct ethhdr));
-        struct sockaddr_in source, dest;
-        source.sin_addr.s_addr = iph->saddr;
-        dest.sin_addr.s_addr = iph->daddr;
-
-        output.push_back( "IP Header:");
-        output.push_back( "   |-IP Version        : "+ to_string((unsigned int)iph->version));
-        output.push_back( "   |-Header Length     : "+ to_string (((unsigned int)(iph->ihl)) * 4));
-        output.push_back( "   |-Source IP         : "+ string( inet_ntoa(source.sin_addr)));
-        output.push_back( "   |-Destination IP    : "+ string( inet_ntoa(dest.sin_addr)));
-        output.push_back( "   |-Protocol          : "+ to_string( (unsigned int)iph->protocol));
-
-        // Cabecera TCP o UDP
-        if (iph->protocol == IPPROTO_TCP && length > sizeof(struct ethhdr) + iph->ihl * 4) {
-            struct tcphdr* tcph = (struct tcphdr*)(data + sizeof(struct ethhdr) + iph->ihl * 4);
-            output.push_back( "TCP Header:");
-            output.push_back( "   |-Source Port      : "+ to_string( ntohs(tcph->source)));
-            output.push_back( "   |-Destination Port : "+ to_string( ntohs(tcph->dest)));
-        } else if (iph->protocol == IPPROTO_UDP && length > sizeof(struct ethhdr) + iph->ihl * 4) {
-            struct udphdr* udph = (struct udphdr*)(data + sizeof(struct ethhdr) + iph->ihl * 4);
-            output.push_back( "UDP Header:");
-            output.push_back( "   |-Source Port      : "+ to_string( ntohs(udph->source)));
-            output.push_back( "   |-Destination Port : "+ to_string( ntohs(udph->dest)));
+            // output.push_back( "   |-Destination Address : "+to_string( eth->h_dest[0])+to_string(eth->h_dest[1]) + to_string(eth->h_dest[2])+to_string(eth->h_dest[3])+to_string(eth->h_dest[4]) +to_string(eth->h_dest[5]));
+            // output.push_back( "   |-Source Address      : "+to_string( eth->h_source[0])+to_string(eth->h_source[1]) + to_string(eth->h_source[2])+to_string(eth->h_source[3])+to_string(eth->h_source[4]) +to_string(eth->h_source[5]));
+            output.push_back( "   |-Protocol            : "+to_string(ntohs(eth->h_proto)) );
+        } else {
+            output.push_back( "Incomplete Ethernet Header");
         }
-    } else {
-        output.push_back( "Incomplete IP Header");
-    }
 
-    // Refresca la ventana para mostrar los datos
-    return output;
+        // Cabecera IP
+        if (length > sizeof(struct ethhdr)) {
+            struct iphdr* iph = (struct iphdr*)(data + sizeof(struct ethhdr));
+            struct sockaddr_in source, dest;
+            source.sin_addr.s_addr = iph->saddr;
+            dest.sin_addr.s_addr = iph->daddr;
+
+            output.push_back( "IP Header:");
+            output.push_back( "   |-IP Version        : "+ to_string((unsigned int)iph->version));
+            output.push_back( "   |-Header Length     : "+ to_string (((unsigned int)(iph->ihl)) * 4));
+            output.push_back( "   |-Source IP         : "+ string( inet_ntoa(source.sin_addr)));
+            output.push_back( "   |-Destination IP    : "+ string( inet_ntoa(dest.sin_addr)));
+            output.push_back( "   |-Protocol          : "+ to_string( (unsigned int)iph->protocol));
+
+            // Cabecera TCP o UDP
+            if (iph->protocol == IPPROTO_TCP && length > sizeof(struct ethhdr) + iph->ihl * 4) {
+                struct tcphdr* tcph = (struct tcphdr*)(data + sizeof(struct ethhdr) + iph->ihl * 4);
+                output.push_back( "TCP Header:");
+                output.push_back( "   |-Source Port      : "+ to_string( ntohs(tcph->source)));
+                output.push_back( "   |-Destination Port : "+ to_string( ntohs(tcph->dest)));
+                output.push_back(  "   |-Sequence Number    : "+to_string(ntohl(tcph->seq)));
+	            output.push_back(  "   |-Acknowledge Number : "+to_string(ntohl(tcph->ack_seq)));
+	            output.push_back(  "   |-Header Length      : " +to_string((unsigned int)tcph->doff)+"DWORDS"+to_string((unsigned int)tcph->doff*4)+"BYTES");
+	            output.push_back(  "   |-Urgent Flag          :"+to_string((unsigned int)tcph->urg));
+	            output.push_back(  "   |-Acknowledgement Flag :"+to_string((unsigned int)tcph->ack));
+	            output.push_back(  "   |-Push Flag            : "+to_string((unsigned int)tcph->psh));
+	            output.push_back(  "   |-Reset Flag           : "+to_string((unsigned int)tcph->rst));
+	            output.push_back(  "   |-Synchronise Flag     : "+to_string((unsigned int)tcph->syn));
+	            output.push_back(  "   |-Finish Flag          : "+to_string((unsigned int)tcph->fin));
+	            output.push_back(  "   |-Window         : "+to_string(ntohs(tcph->window)));
+	            output.push_back(  "   |-Checksum       : "+to_string(ntohs(tcph->check)));
+	            output.push_back(  "   |-Urgent Pointer : "+to_string(tcph->urg_ptr));
+
+	         
+		
+	          
+	       
+						
+
+
+            } else if (iph->protocol == IPPROTO_UDP && length > sizeof(struct ethhdr) + iph->ihl * 4) {
+                struct udphdr* udph = (struct udphdr*)(data + sizeof(struct ethhdr) + iph->ihl * 4);
+                output.push_back( "UDP Header:");
+                output.push_back( "   |-Source Port      : "+ to_string( ntohs(udph->source)));
+                output.push_back( "   |-Destination Port : "+ to_string( ntohs(udph->dest)));
+                output.push_back( "   |-UDP Length       : " + to_string( ntohs(udph->len)));
+	            output.push_back( "   |-UDP Checksum     : " + to_string( ntohs(udph->check)));
+            }
+        } else {
+            output.push_back( "Incomplete IP Header");
+        }
+
+        // Refresca la ventana para mostrar los datos
+        return output;
     }
 
     void CreateSecLists() {
-        // vector<DataBlocks> blocks;
-        // rawList = DerList<DataBlocks>(win3->subw, splitIntoBlocks(), draw_rawData);
-        // rawList = std::make_unique<DerList<DataBlocks>>(win3->subw, splitIntoBlocks(), draw_rawData);
         rawList = new DerList<DataBlocks>(win3->subw, splitIntoBlocks(), draw_rawData);
         rawList->subw.erase();
         rawList->draw_list();
@@ -223,16 +260,6 @@ public:
         infoList = new DerList<string>(win2->subw, getInfo(), print_packet_info);
         infoList->subw.erase();
         infoList->draw_list();
-
-
-
-
-
-
-
-        // win2->erase();
-        // mvwprintw(win2->win, 0, 0, "%d", rawList->list.size());
-        // win2->refresh();
     }
 };
 
@@ -345,7 +372,7 @@ void main_packet_data(SubWindow& subw, vector<PacketData>& list, int option_inde
             protText = "MPTCP";
             break;
         default:
-            protText = "Others";
+            protText = to_string(protocol);
             break;
         
     }
@@ -363,9 +390,7 @@ void draw_rawData(SubWindow& subw, vector<DataBlocks>& list, int option_index, i
 }
 
 void print_packet_info(SubWindow& subw, vector<string>& list, int option_index, int y) {
-    
-    mvprintw(subw.win,y,0,"%-48s  %-16s", list[option_index]);
-   
+    mvwprintw(subw.win,y,0,"%*s", -subw.width, list[option_index].c_str());
 }
 // void splitIntoBlocks(vector<DataBlocks>& blocks, vector<u_char>& data, bpf_u_int32 length) {
 //     //vector<DataBlocks> blocks; // Estructura para almacenar los bloques

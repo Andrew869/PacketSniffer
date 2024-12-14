@@ -108,7 +108,7 @@ public:
 
 class ParentWin : public Window {
 public:
-    ParentWin(int height, int width, int y, int x) : Window(height, width, y, x), subw(height-6, width - 2, 2, 1) {
+    ParentWin(int height, int width, int y, int x) : Window(height, width, y, x), subw(height-2, width - 2, 1, 1) {
         this->win = newwin(height, width, y, x);  // Esta línea debe estar aquí
         subw.SetSub(this->win);  // Luego asignas la subventana
         this ->win =newwin(height,width,y,x);
@@ -274,12 +274,12 @@ void PrintTitles(){
 
  
 
-    mvwprintw(win1->win, 1, 2, "[No.]");
-    mvwprintw(win1->win, 1, 9, "[Time]");
-    mvwprintw(win1->win, 1, 20, "[Source]");
-    mvwprintw(win1->win, 1, 36, "[Destination]");
-    mvwprintw(win1->win,1, 52, "[Prot]");
-    mvwprintw(win1->win, 1, 60, "[Len]");
+    mvwprintw(win1->win, 0, 2, "[No.]");
+    mvwprintw(win1->win, 0, 9, "[Time]");
+    mvwprintw(win1->win, 0, 20, "[Source]");
+    mvwprintw(win1->win, 0, 36, "[Destination]");
+    mvwprintw(win1->win, 0, 52, "[Prot]");
+    mvwprintw(win1->win, 0, 60, "[Len]");
     // wmove(win, 1, 1);
     // int h, w;
     // getmaxyx(win, h, w);
