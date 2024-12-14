@@ -3,12 +3,17 @@
 
 #define cmvprintw(c, y, x, format, ...) \
     do { \
-        attron(COLOR_PAIR(c)); \
+        attron(A_REVERSE); \
         mvprintw(y, x, format, ##__VA_ARGS__); \
-        attroff(COLOR_PAIR(c)); \
+        attroff(A_REVERSE); \
     } while (0)
 
 using namespace std;
+
+struct DataBlocks {
+    string hexData; // Lista de cadenas en formato hexadecimal
+    string rawData; // Lista de cadenas en formato "raw"
+};
 
 class packetData {
 public:
@@ -31,7 +36,7 @@ public:
 };
 
 int link_hdr_length = 0;
-window *win1;
+parentwin *win1, *win2, *win3;
 vector<packetData> packets;
 int max_y, max_x;
 int packetCount = 0;
@@ -41,6 +46,8 @@ string selected_protocol="ALL";
 
 int current_selection = 0;
 int scroll_start = 0;
+int current_selection3 = 0;
+int scroll_start3 = 0;
 
 int isAutoScroll = true;
 
@@ -52,6 +59,7 @@ void packetManager(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char 
 void draw_list();
 void move_selection(int direction);
 void select_protocol();
+vector<DataBlocks> splitIntoBlocks();
 
 int main(int argc, char const *argv[]) {
     pcap_if_t *alldevsp , *device;
@@ -146,16 +154,35 @@ int main(int argc, char const *argv[]) {
     if (pcap_setfilter(capdev, &bpf)) {
         printf("ERR: pcap_setfilter() %s", pcap_geterr(capdev));
     }
+
     clear();
     refresh();
-    win1 = new window(max_y / 2, 66, 0, 0);
+    win1 = new parentwin(max_y / 2, max_x / 2, 0, 0);
     win1->init();
+    // win1->subw.win = subwin(win1->win, win1->height - 2, win1->width - 2, 1, 1);
+    // box(win1->subw.win, 0 ,0);
+    // mvwprintw(win1->subw.win, 1, 1, "hello");
+    // mvprintw(5, 0, "%d",win1->subw.win);
+    // win1->subw.refresh();
+    
+    win2 = new parentwin(max_y / 2, max_x / 2, max_y / 2, 0);
+    win2->init();
+    // box(win2->subw.win, 0 ,0);
+    // mvwprintw(win2->subw.win, 1, 1, "hello");
+    // mvprintw(6, 0, "%d",win2->subw.win);
+    // win2->subw.refresh();
+
+    win3 = new parentwin(max_y, max_x / 2, 0, max_x / 2);
+    win3->init();
+    // mvprintw(7, 0, "%d",win3->subw.win);
+    // win3->subw.refresh();
 
     start_time = steady_clock::now();
     // if (pcap_loop(capdev, packets_count, packetManager, (u_char *)NULL)) {
     //     printf("ERR: pcap_loop() failed!\n");
     //     exit(1);
     // }
+
     pthread_t captureThread;
     int threadError = pthread_create(&captureThread, NULL, threadpcap, (void *)capdev);
     if (threadError) {
@@ -185,8 +212,16 @@ int main(int argc, char const *argv[]) {
                 move_selection(1);
                 break;
             case KEY_BACKSPACE:
-                win1->init();
-                win1->refresh();
+                // win1->init();
+                // win1->refresh();
+                // box(win2->subw.win, 0, 0);
+                // win2->subw.refresh();
+                break;
+            case 'f':
+                select_protocol();
+                current_selection=0;
+                scroll_start=0;
+                draw_list();
                 break;
             case 'f':
                 select_protocol();
@@ -273,12 +308,12 @@ void select_protocol(){
 }
 
 void draw_list() {
-    int available_rows = win1->max_y;
+    int available_rows = win1->subw.height;
     int displayed_packets=0;
     int option_index=0;
 
 
-    for(size_t i=scroll_start; i<packets.size() && displayed_packets < available_rows; ++i ){
+    for(size_t i=scroll_start; i<packets.size() && displayed_packets < available_rows; i++ ){
         const struct ip* ip_header=(struct ip*)(packets[i].data.data() +14);
         int protocol=ip_header ->ip_p;
         string protText;
@@ -294,7 +329,7 @@ void draw_list() {
         }
         if (option_index < packets.size()) {
             if (option_index == current_selection) {
-                wattron(win1->win, A_REVERSE);
+                wattron(win1->subw.win, A_REVERSE);
             }
             const struct ip* ip_header;   // Estructura para el encabezado IP
             int ip_header_length;         // Longitud del encabezado IP
@@ -354,8 +389,29 @@ void draw_list() {
         ++displayed_packets;
 
     }
+    // mvwprintw(win1->subw.win, 0, 0, "hello");
+    // win1->subw.refresh();
+    win1->subw.refresh();
+}
+void draw_rawData(const vector<DataBlocks>& blocks){
+    win3->subw.erase();
+    int available_rows = win3->subw.height;
 
-    win1->refresh();
+    // mvwprintw(win3->win, 1, 1, "%d", available_rows);
+
+    for (int i = 0; i < available_rows; i++) {
+        int option_index = scroll_start3 + i;
+
+        if (option_index < blocks.size()) {
+            // if (option_index == current_selection3) {
+            //     wattron(win3->win, A_REVERSE);
+            // }
+
+            mvwprintw(win3->subw.win, i, 0, "%-48s  %-16s", blocks[i].hexData.c_str(), blocks[i].rawData.c_str());
+            // wattroff(win3->win, A_REVERSE);
+        }
+    }
+    win3->subw.refresh();
 }
 
 void move_selection(int direction) {
@@ -381,13 +437,46 @@ void move_selection(int direction) {
 
     }
 
-    if(current_selection < scroll_start){
-        scroll_start=current_selection;
-
-    }else if(current_selection >= scroll_start +win1->max_y){
-        scroll_start=current_selection -win1->max_y+1;
+    if (current_selection < scroll_start) {
+        scroll_start = current_selection;
+    } else if (current_selection >= scroll_start + win1->subw.height) {
+        scroll_start = current_selection - win1->subw.height + 1;
     }
 
+    // wclear(win3->win);
+    // win3->init();
+    // wmove(win3->win, 1, 1);
+    // mvwprintw(win2->win, 0, 0, "Hello world!"); 
+    // int y = max_y / 2;
+    // vector<string> rawData;
+    // string line = "";
+    // for (int i = 0; i < packets[current_selection].length; i++) {
+
+    //     if(packets[current_selection].data.data()[i] >= 32 && packets[current_selection].data.data()[i]<=128) 
+    //     {
+    //         // wprintw(win3->win, "%c", (unsigned char)packets[current_selection].data.data()[i]);
+    //         line += (unsigned char)packets[current_selection].data.data()[i];
+    //     }
+    //     else 
+    //     {
+    //         line += '.';
+    //         // wprintw(win3->win, ".");
+    //     }
+
+    //     if (i % 16 == 0) {
+    //         // wprintw(win2->win, "\n");
+    //         // y++;
+    //         rawData.push_back(line);
+    //         line = "";
+    //     }
+    //     // if(y >= max_y - 1) break;
+        
+        
+    //     // wprintw(win2->win, "%02X ", packets[current_selection].data.data()[i]);
+    // }
+    // // win3->refresh();
+
+    // vector<DataBlocks> blocks = splitIntoBlocks();
 
     draw_list();
 }
