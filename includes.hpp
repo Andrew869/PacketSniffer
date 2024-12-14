@@ -22,3 +22,15 @@
 #include <chrono>               // Utilidades de tiempo en C++
 #include <sstream>              // Para std::stringstream
 #include <iomanip>              // Para std::setw
+#include <memory>
+
+#include <linux/if_ether.h> // Asegúrate de incluir este encabezado
+#include <netinet/ip.h>     // Para la estructura iphdr
+#include <netinet/tcp.h>    // Para la estructura tcphdr
+#include <netinet/udp.h>    // Para la estructura udphdr
+#include <arpa/inet.h>      // Para inet_ntoa
+#include <cstring>          // Si usas funciones estándar de C
+
+
+using namespace std;
+using namespace chrono;

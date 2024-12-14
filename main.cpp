@@ -1,5 +1,6 @@
 #include "includes.hpp"
 #include "display.hpp"
+#include "selectList.hpp"
 
 #define cmvprintw(c, y, x, format, ...) \
     do { \
@@ -8,58 +9,15 @@
         attroff(A_REVERSE); \
     } while (0)
 
-using namespace std;
-
-struct DataBlocks {
-    string hexData; // Lista de cadenas en formato hexadecimal
-    string rawData; // Lista de cadenas en formato "raw"
-};
-
-class packetData {
-public:
-    duration<double> elapsed_seconds;
-    vector<u_char> data;
-    bpf_u_int32 length;
-
-    packetData(duration<double> elapsed_seconds, const u_char* packet_ptr, bpf_u_int32 length) : length(length)  {
-        this->elapsed_seconds = elapsed_seconds;
-        data.assign(packet_ptr, packet_ptr + length);
-    }
-private:
-};
-
-class SelectList {
-public:
-    int index;
-    int length;
-
-};
-
 int link_hdr_length = 0;
-parentwin *win1, *win2, *win3;
-vector<packetData> packets;
-int max_y, max_x;
-int packetCount = 0;
-steady_clock::time_point start_time, end_time;
-string selected_protocol="ALL";
 
-
-int current_selection = 0;
-int scroll_start = 0;
-int current_selection3 = 0;
-int scroll_start3 = 0;
-
-int isAutoScroll = true;
-
-
-void InitDisplay(int &height, int &width);
-void EndDisplay();
-void *threadpcap(void *arg);
 void packetManager(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char *packetd_ptr);
-void draw_list();
-void move_selection(int direction);
-void select_protocol();
-vector<DataBlocks> splitIntoBlocks();
+void *threadpcap(void *arg);
+
+int max_y, max_x;
+
+// int packetCount = 0;
+steady_clock::time_point start_time, end_time;
 
 int main(int argc, char const *argv[]) {
     pcap_if_t *alldevsp , *device;
@@ -67,8 +25,8 @@ int main(int argc, char const *argv[]) {
     int count = 0;
 
     // int packets_count = -1;
-    // char filters[100] = "port 80";InitDisplay
-    // char filters[] = "tcp port 22";
+    // char filters[100] = "port 80";
+    // char filters[] = "tcp port 22";z
     char filters[] = "";
 
     InitDisplay(max_y, max_x);
@@ -121,7 +79,7 @@ int main(int argc, char const *argv[]) {
         }
         mvprintw(max_y - 1, max_x - 1, "%d", index);
     }
-    select_protocol();
+
     char error_buffer[PCAP_ERRBUF_SIZE];
     // devname = devs[0];
     pcap_t *capdev = pcap_open_live(devname, 65535, 1, -1, error_buffer);
@@ -157,7 +115,7 @@ int main(int argc, char const *argv[]) {
 
     clear();
     refresh();
-    win1 = new parentwin(max_y / 2, max_x / 2, 0, 0);
+    win1 = new ParentWin((max_y / 2)-4, max_x / 2, 3, 0);
     win1->init();
     // win1->subw.win = subwin(win1->win, win1->height - 2, win1->width - 2, 1, 1);
     // box(win1->subw.win, 0 ,0);
@@ -165,17 +123,29 @@ int main(int argc, char const *argv[]) {
     // mvprintw(5, 0, "%d",win1->subw.win);
     // win1->subw.refresh();
     
-    win2 = new parentwin(max_y / 2, max_x / 2, max_y / 2, 0);
+    win2 = new ParentWin(max_y / 2, max_x / 2, max_y / 2, 0);
     win2->init();
-    // box(win2->subw.win, 0 ,0);
-    // mvwprintw(win2->subw.win, 1, 1, "hello");
-    // mvprintw(6, 0, "%d",win2->subw.win);
-    // win2->subw.refresh();
 
-    win3 = new parentwin(max_y, max_x / 2, 0, max_x / 2);
+    // box(win2->subw.win, 0 ,0);
+     //mvwprintw(win2->subw.win, 1, 1, "hello");
+    // mvprintw(6, 0, "%d",win2->subw.win);
+     win2->subw.refresh();
+
+    win3 = new ParentWin(max_y-4, max_x / 2, 3, max_x / 2);
     win3->init();
+    PrintTitles();
+
+    win4=new ParentWin(3,max_x,0,0);
+    win4->init();
+    printMenu();
+
     // mvprintw(7, 0, "%d",win3->subw.win);
     // win3->subw.refresh();
+    mainList = new MainList(win1->subw, packets, main_packet_data);
+
+    // lists.emplace_back(win1->subw, packets, main_packet_data);
+    // lists.emplace_back(win3->subw, packets, main_packet_data);
+    // lists.emplace_back(win1->subw, packets, main_packet_data);
 
     start_time = steady_clock::now();
     // if (pcap_loop(capdev, packets_count, packetManager, (u_char *)NULL)) {
@@ -194,40 +164,41 @@ int main(int argc, char const *argv[]) {
     while ((key = getch()) != 'q') {
         switch (key) {
             case KEY_UP:
-                isAutoScroll = false;
-                move_selection(-1);
+                autoScroll = false;
+                mainList->move_selection(-1);
                 break;
             case KEY_DOWN:
-                isAutoScroll = false;
-                move_selection(1);
+                autoScroll = false;
+                mainList->move_selection(1);
+                break;
+            case 'w':
+                // autoScroll = false;
+                mainList->rawList->move_selection(-1);
+                break;
+            case 's':
+                // autoScroll = false;
+                mainList->rawList->move_selection(1);
                 break;
             case KEY_HOME:
-                isAutoScroll = false;
-                current_selection = 0;
-                move_selection(-1);
+                autoScroll = false;
+                // current_selection = 0;
+                mainList->current_selection = 0;
+                mainList->move_selection(-1);
                 break;
             case KEY_END:
-                isAutoScroll = true;
-                current_selection = packets.size() - 1;
-                move_selection(1);
+                autoScroll = true;
+                mainList->current_selection = mainList->list.size() - 1;
+                // current_selection = packets.size() - 1;
+                mainList->move_selection(1);
                 break;
             case KEY_BACKSPACE:
-                // win1->init();
-                // win1->refresh();
-                // box(win2->subw.win, 0, 0);
-                // win2->subw.refresh();
-                break;
-            case 'f':
-                select_protocol();
-                current_selection=0;
-                scroll_start=0;
-                draw_list();
-                break;
-            case 'f':
-                select_protocol();
-                current_selection=0;
-                scroll_start=0;
-                draw_list();
+                win1->erase();
+                win2->erase();
+                win3->erase();
+                win1->init();
+                win2->init();
+                win3->init();
+                PrintTitles();
                 break;
         }
         // mvprintw(max_y - 2, max_x - 10, "%6d", current_selection);
@@ -250,11 +221,10 @@ void packetManager(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char 
     duration<double> elapsed_seconds = duration_cast<duration<double>>(end_time - start_time);
     packets.push_back({elapsed_seconds, packetd_ptr, pkthdr->len});
 
-    if(isAutoScroll){
-        move_selection(1);
+    if(autoScroll){
+        mainList->move_selection(1);
     }
 }
-
 
 void *threadpcap(void *arg) {
     pcap_t *capdev = (pcap_t *)arg;
@@ -266,217 +236,4 @@ void *threadpcap(void *arg) {
     }
 
     return NULL;
-}
-
-void select_protocol(){
-    const char* protocols[]={"ALL","TCP","UDP","ICMP","IP"};
-    int num_protocols=5;
-    int index=0;
-    int keyPressed=' ';
-
-    while(keyPressed!='\n'){
-        clear();
-        mvprintw(0,0,"select a protocol to filter plis : (if you dont press anything you arent a deity )");
-        for(int i=0; i<num_protocols;i++){
-            if(i==index){
-                cmvprintw(1,i+2,0,"%-10s",protocols[i]);
-            }else{
-                mvprintw(i+2,0,"%-10s",protocols[i]);
-
-            }
-        }
-        mvprintw(num_protocols+3,0,"Press Enter for path of deities:  Up/Down to navigate");
-        keyPressed=getch();
-        switch(keyPressed){
-            case 'W':
-            case 'w':
-            case KEY_UP:
-                index =(index-1 + num_protocols)% num_protocols;
-                break;
-            case 'S':
-            case 's':
-            case KEY_DOWN:
-                index=(index+1)% num_protocols;
-                break;
-        }
-    }
-    selected_protocol=protocols[index];
-    clear();
-    refresh();
-
-
-}
-
-void draw_list() {
-    int available_rows = win1->subw.height;
-    int displayed_packets=0;
-    int option_index=0;
-
-
-    for(size_t i=scroll_start; i<packets.size() && displayed_packets < available_rows; i++ ){
-        const struct ip* ip_header=(struct ip*)(packets[i].data.data() +14);
-        int protocol=ip_header ->ip_p;
-        string protText;
-        switch (protocol) {
-            case IPPROTO_TCP: protText = "TCP"; break;
-            case IPPROTO_UDP: protText = "UDP"; break;
-            case IPPROTO_ICMP: protText = "ICMP"; break;
-            case IPPROTO_IP: protText = "IP"; break;
-            default: protText = to_string(protocol); break;
-        }
-        if (selected_protocol != "ALL" && selected_protocol != protText) {
-            continue; // Ignora este paquete
-        }
-        if (option_index < packets.size()) {
-            if (option_index == current_selection) {
-                wattron(win1->subw.win, A_REVERSE);
-            }
-            const struct ip* ip_header;   // Estructura para el encabezado IP
-            int ip_header_length;         // Longitud del encabezado IP
-
-            // Saltar el encabezado Ethernet si es necesario (usualmente 14 bytes)
-
-            // Obtener el encabezado IP desde los datos del paquete
-            ip_header = (struct ip*)(packets[option_index].data.data() + 14);  // +14 para saltar el encabezado Ethernet (si presente)
-            ip_header_length = ip_header->ip_hl * 4; // Longitud del encabezado IP en bytes (ip_hl está en palabras de 4 bytes)
-
-            // Obtener direcciones IP de origen y destino
-            char source_ip[INET_ADDRSTRLEN];
-            char dest_ip[INET_ADDRSTRLEN];
-
-            inet_ntop(AF_INET, &(ip_header->ip_src), source_ip, INET_ADDRSTRLEN); // IP de origen
-            inet_ntop(AF_INET, &(ip_header->ip_dst), dest_ip, INET_ADDRSTRLEN);   // IP de destino
-
-            // Obtener protocolo
-            int protocol = ip_header->ip_p; // Campo ip_p contiene el número de protocolo (TCP, UDP, etc.)
-            string protText;
-            switch (protocol) {
-                case IPPROTO_TCP:
-                    protText = "TCP";
-                    break;
-                case IPPROTO_UDP:
-                    protText = "UDP";
-                    break;
-                case IPPROTO_ICMP:
-                    protText = "ICMP";
-                    break;
-                case IPPROTO_IP:
-                    protText = "IP";
-                    break;
-                default:
-                    protText = to_string(protocol);
-                    break;
-            }
-
-            // Obtener tamaño del paquete
-            int packet_size = ntohs(ip_header->ip_len);
-
-
-            
-        }
-        if(displayed_packets == current_selection-scroll_start){
-            wattron(win1->win,A_REVERSE);
-        }
-
-        char source_ip[INET_ADDRSTRLEN], dest_ip[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET,&(ip_header->ip_src),source_ip,INET_ADDRSTRLEN);
-        inet_ntop(AF_INET,&(ip_header->ip_dst), dest_ip, INET_ADDRSTRLEN);
-        mvwprintw(win1->win, displayed_packets+1,1,"%5zu %11f  %-15s %-15s  %4s  %6d",i,packets[i].elapsed_seconds.count(),source_ip,dest_ip,protText.c_str(),ntohs(ip_header->ip_len));
-
-        if(displayed_packets == current_selection -scroll_start){
-            wattroff(win1->win,A_REVERSE);
-        }
-        ++displayed_packets;
-
-    }
-    // mvwprintw(win1->subw.win, 0, 0, "hello");
-    // win1->subw.refresh();
-    win1->subw.refresh();
-}
-void draw_rawData(const vector<DataBlocks>& blocks){
-    win3->subw.erase();
-    int available_rows = win3->subw.height;
-
-    // mvwprintw(win3->win, 1, 1, "%d", available_rows);
-
-    for (int i = 0; i < available_rows; i++) {
-        int option_index = scroll_start3 + i;
-
-        if (option_index < blocks.size()) {
-            // if (option_index == current_selection3) {
-            //     wattron(win3->win, A_REVERSE);
-            // }
-
-            mvwprintw(win3->subw.win, i, 0, "%-48s  %-16s", blocks[i].hexData.c_str(), blocks[i].rawData.c_str());
-            // wattroff(win3->win, A_REVERSE);
-        }
-    }
-    win3->subw.refresh();
-}
-
-void move_selection(int direction) {
-    int new_selection = current_selection + direction;
-    while (new_selection >=0 && new_selection<static_cast<int>(packets.size())){
-        const struct ip* ip_header =(struct ip*)(packets[new_selection].data.data()+14);
-        int protocol=ip_header->ip_p;
-
-        string proText;
-        switch (protocol){
-            case IPPROTO_TCP: proText="TCP";break;
-            case IPPROTO_UDP: proText="UDP";break;
-            case IPPROTO_ICMP: proText="ICMP";break;
-            case IPPROTO_IP: proText="IP"; break;
-            default: proText=to_string(protocol);break;
-        }
-
-        if(selected_protocol == "ALL" || selected_protocol ==proText){
-            current_selection=new_selection;
-            break;
-        }
-        new_selection+= direction;
-
-    }
-
-    if (current_selection < scroll_start) {
-        scroll_start = current_selection;
-    } else if (current_selection >= scroll_start + win1->subw.height) {
-        scroll_start = current_selection - win1->subw.height + 1;
-    }
-
-    // wclear(win3->win);
-    // win3->init();
-    // wmove(win3->win, 1, 1);
-    // mvwprintw(win2->win, 0, 0, "Hello world!"); 
-    // int y = max_y / 2;
-    // vector<string> rawData;
-    // string line = "";
-    // for (int i = 0; i < packets[current_selection].length; i++) {
-
-    //     if(packets[current_selection].data.data()[i] >= 32 && packets[current_selection].data.data()[i]<=128) 
-    //     {
-    //         // wprintw(win3->win, "%c", (unsigned char)packets[current_selection].data.data()[i]);
-    //         line += (unsigned char)packets[current_selection].data.data()[i];
-    //     }
-    //     else 
-    //     {
-    //         line += '.';
-    //         // wprintw(win3->win, ".");
-    //     }
-
-    //     if (i % 16 == 0) {
-    //         // wprintw(win2->win, "\n");
-    //         // y++;
-    //         rawData.push_back(line);
-    //         line = "";
-    //     }
-    //     // if(y >= max_y - 1) break;
-        
-        
-    //     // wprintw(win2->win, "%02X ", packets[current_selection].data.data()[i]);
-    // }
-    // // win3->refresh();
-
-    // vector<DataBlocks> blocks = splitIntoBlocks();
-
-    draw_list();
 }

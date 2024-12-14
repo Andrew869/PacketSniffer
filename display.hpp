@@ -1,9 +1,6 @@
-using namespace std;
-using namespace chrono;
-
-class window {
+class Window {
 public:
-    window(int height, int width, int y, int x){
+    Window(int height, int width, int y, int x){
         this->height = height;
         this->width = width;
         this->y = y;
@@ -79,9 +76,9 @@ public:
 //     subwindow subw;
 // };
 
-class subwindow : public window {
+class SubWindow : public Window {
 public:
-    subwindow(int height, int width, int y, int x) : window(height, width, y, x) {
+    SubWindow(int height, int width, int y, int x) : Window(height, width, y, x) {
         // win = subwin(parent, height, width, y, x);
     }
 
@@ -89,23 +86,46 @@ public:
         win = derwin(parent, height, width, y, x);
     }
 };
-
-class parentwin : public window {
+class MenuSuperior : public Window {
 public:
-    parentwin(int height, int width, int y, int x) : window(height, width, y, x), subw(height - 2, width - 2, 1, 1){
-    // parentwin(int height, int width, int y, int x) : window(height, width, y, x){
-        this->win = newwin(height, width, y, x);
-        // subw = new subwindow(this->win, height - 2, width - 2, 1, 1);
-        subw.SetSub(this->win);
+    MenuSuperior(int height, int width, int y, int x) : Window(height, width, y, x) {
+        // Inicializa la ventana con bordes
+
+        mvwprintw(win, 1, 1, "Menu Superior - F1: Inicio F2: Salir");
+        wrefresh(win);
     }
 
-    void init(){
+    // Establece una subventana dentro de una ventana principal
+    void SetMen(WINDOW *parent) {
+        win = derwin(parent, height, width, y, x);
+       
+        mvwprintw(win, 1, 1, "  F1: Filtro F2: Interfaz  F3:Exportar");
+        wrefresh(win);
+    }
+};
+
+
+
+class ParentWin : public Window {
+public:
+    ParentWin(int height, int width, int y, int x) : Window(height, width, y, x), subw(height-6, width - 2, 2, 1) {
+        this->win = newwin(height, width, y, x);  // Esta línea debe estar aquí
+        subw.SetSub(this->win);  // Luego asignas la subventana
+        this ->win =newwin(height,width,y,x);
+       
+    }
+
+    void init() {
         box(win, 0, 0);
+    
         refresh();
     }
+    SubWindow subw;
 
-    subwindow subw;
+
+
 };
+// Menú superior
 
 void InitDisplay(int &height, int &width){
     initscr();            // Inicializa ncurses
@@ -117,6 +137,7 @@ void InitDisplay(int &height, int &width){
     nodelay(stdscr, TRUE);// No bloquear en getch()
     timeout(100);         // Esperar 100ms en cada iteración
     getmaxyx(stdscr, height, width);
+
 
     // init_pair(1, COLOR_BLACK, COLOR_WHITE);
 }
@@ -171,7 +192,7 @@ int nomain() {
     // mvprintw(4, 30, "Hello World");
 
     int width1 = width, height1 = height / 2;
-    int max_y = height1 - 2;
+    int max_y = height1 - 5;
     win1 = newwin(height1, width1, 0, 0);
     box(win1, 0, 0);
     wbkgd(win1, COLOR_PAIR(1));
@@ -239,4 +260,39 @@ int nomain() {
     endwin();
 
     return 0;
+}
+
+ParentWin *win1, *win2, *win3 , *win4;
+
+void PrintTitles(){
+    //         1         2         3         4         5         6         7 
+    //1234567890123456789012345678901234567890123456789012345678901234567890
+    // [No.]    [Time]   [Source]        [Destination]   [Prot]  [Len]
+    //12345 1234.678901  192.168.115.199 192.168.115.199  ICMP  99999
+    //  111   19.210  20.190.157.96   192.168.0.8       TCP   1434│  
+    //01 9a 6f 54 00 00 01 01 08 0a bc 51 af 3a 15 95   ..oT.......Q.:..
+
+ 
+
+    mvwprintw(win1->win, 1, 2, "[No.]");
+    mvwprintw(win1->win, 1, 9, "[Time]");
+    mvwprintw(win1->win, 1, 20, "[Source]");
+    mvwprintw(win1->win, 1, 36, "[Destination]");
+    mvwprintw(win1->win,1, 52, "[Prot]");
+    mvwprintw(win1->win, 1, 60, "[Len]");
+    // wmove(win, 1, 1);
+    // int h, w;
+    // getmaxyx(win, h, w);
+    // mvprintw(0, 0, "%d,%d", h, w);
+    win1->refresh();
+}
+
+void printMenu(){
+    mvwprintw(win4->win, 1, 2, "F1: FILTRO");
+    mvwprintw(win4->win, 1, 19, "F2: INTERFAZ");
+    mvwprintw(win4->win, 1, 32, "F3: EXPORTAR ");
+    mvwprintw(win4->win, 1, 48, "F4: MANUAL");
+
+    win4->refresh();
+ 
 }
