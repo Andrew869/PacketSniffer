@@ -8,27 +8,6 @@ public:
         // win = newwin(height, width, y, x);
     }
 
-    // void init() {
-    //     box(win, 0, 0);
-    //     //         1         2         3         4         5         6         7 
-    //     //1234567890123456789012345678901234567890123456789012345678901234567890
-    //     // [No.]    [Time]   [Source]        [Destination]   [Prot]  [Len]
-    //     //12345 1234.678901  192.168.115.199 192.168.115.199  ICMP  99999
-    //     //  111   19.210  20.190.157.96   192.168.0.8       TCP   1434│  
-    //     //01 9a 6f 54 00 00 01 01 08 0a bc 51 af 3a 15 95   ..oT.......Q.:..
-    //     // mvwprintw(win, 0, 2, "[No.]");
-    //     // mvwprintw(win, 0, 9, "[Time]");
-    //     // mvwprintw(win, 0, 20, "[Source]");
-    //     // mvwprintw(win, 0, 36, "[Destination]");
-    //     // mvwprintw(win, 0, 52, "[Prot]");
-    //     // mvwprintw(win, 0, 60, "[Len]");
-    //     // wmove(win, 1, 1);
-    //     // int h, w;
-    //     // getmaxyx(win, h, w);
-    //     // mvprintw(0, 0, "%d,%d", h, w);
-    //     refresh();
-    // }
-
     void refresh() {
         wrefresh(win);
     }
@@ -42,72 +21,142 @@ public:
     int y, x;
 };
 
-// class subwindow : public window {
-// public:
-//     subwindow(WINDOW *parent, int height, int width, int y, int x)
-//         : window(height, width, y, x) {
-//         swin = derwin(parent, height, width, y, x);
-//     }
-
-//     void refresh() {
-//         wrefresh(swin);
-//     }
-
-//     void erase() {
-//         werase(swin);
-//     }
-
-//     WINDOW *swin;
-// };
-
-// class parentwin : public window {
-// public:
-//     parentwin(int height, int width, int y, int x)
-//         : window(height, width, y, x),
-//           subw(win, height - 2, width - 2, 1, 1) {
-//     }
-
-//     void init() {
-//         box(win, 0, 0);
-//         refresh();
-//         subw.refresh(); // Refresh de la subventana también
-//     }
-
-//     subwindow subw;
-// };
-
+template<typename T>
 class SubWindow : public Window {
 public:
-    SubWindow(int height, int width, int y, int x) : Window(height, width, y, x) {
-        // win = subwin(parent, height, width, y, x);
-    }
+    SubWindow(int height, int width, int y, int x) : Window(height, width, y, x) {}
+    SubWindow(int height, int width, int y, int x, void (*ListManager)(WINDOW*, vector<T>&, int, int)) : Window(height, width, y, x), ListManager(ListManager) {}
+
+    List<T>* objList;
+    void (*ListManager)(WINDOW*, vector<T>&, int, int) = nullptr;
 
     void SetSub(WINDOW *parent) {
-        win = derwin(parent, height, width, y, x);
+        this->win = derwin(parent, this->height, this->width, this->y, this->x);
     }
+
+    void SetList(vector<T>* list) {
+        this->objList = new List<T>(*list, this->height);
+    }
+
+    void DrawList() {
+        if (objList) {
+            int available_rows = this->height;
+
+            for (int i = 0; i < available_rows; i++) {
+                int option_index = objList->scroll_start + i;
+
+                if (option_index < static_cast<int>(objList->list.size())) {
+                    if (option_index == objList->current_selection) {
+                        wattron(this->win, A_REVERSE);
+                    }
+
+                    ListManager(this->win, objList->list, option_index, i);
+
+                    wattroff(this->win, A_REVERSE);
+                }
+            }
+            this->refresh();
+        }
+    }
+
+    // void moveSelection(int direction) {
+    //     if (objList) {
+    //         objList->move_selection(direction);
+    //     }
+    // }
 };
 
-class ParentWin : public Window {
+class BaseParentWin : public Window {
 public:
-    ParentWin(int height, int width, int y, int x) : Window(height, width, y, x), subw(height - 2, width - 2, 1, 1){
+    BaseParentWin(int height, int width, int y, int x) 
+        : Window(height, width, y, x) {}
+
+    virtual ~BaseParentWin() {}
+
+    virtual void DrawBorder() = 0;
+    virtual void DrawSubWindow() = 0;
+    virtual void EraseSubWindow() = 0;
+    virtual int GetCurrSelect() = 0;
+    virtual void moveSelection(int direction) = 0;
+    virtual void SetLink(BaseParentWin* linkedWin) = 0;
+    virtual BaseParentWin* GetLink() = 0;
+};
+
+template<typename T>
+class ParentWin : public BaseParentWin {
+public:
+    ParentWin(int height, int width, int y, int x) : BaseParentWin(height, width, y, x), subw(height - 2, width - 2, 1, 1){
     // parentwin(int height, int width, int y, int x) : window(height, width, y, x){
         this->win = newwin(height, width, y, x);
         // subw = new subwindow(this->win, height - 2, width - 2, 1, 1);
         subw.SetSub(this->win);
     }
 
-    void init(){
+    ParentWin(int height, int width, int y, int x, void (*ListManager)(WINDOW*, vector<T>&, int, int)) : BaseParentWin(height, width, y, x), subw(height - 2, width - 2, 1, 1, ListManager){
+        this->win = newwin(height, width, y, x);
+        subw.SetSub(this->win);
+        list = new vector<T>;
+        subw.SetList(list);
+    }
+
+    ~ParentWin() {
+        delete list;
+    }
+
+    void DrawBorder() override{
         box(win, 0, 0);
         refresh();
     }
 
-    SubWindow subw;
+    void DrawSubWindow() override {
+        subw.DrawList();
+    }
+
+    void EraseSubWindow() override {
+        subw.erase();
+    }
+
+    int GetCurrSelect() override {
+        return subw.objList->current_selection;
+    }
+
+    void moveSelection(int direction) override {
+        if (subw.objList) {
+            subw.objList->move_selection(direction);
+        }
+    }
+
+    void SetLink(BaseParentWin* linkedWin) override{
+        this->linkedWin = linkedWin;
+    }
+
+    BaseParentWin* GetLink() override{
+        return linkedWin;
+    }
+
+     vector<T>* GetList() {
+        return list;
+    }
+
+    // Setter para la lista
+    void SetList(vector<T>* newList) {
+        if (list != nullptr) {
+            delete list; // Liberar la lista actual, si existe
+        }
+        list = newList; // Asignar la nueva lista
+        //subw.SetList(list); // Vincular la nueva lista al subwindow si aplica
+    }
+
+    SubWindow<T> subw;
+    BaseParentWin* linkedWin = nullptr;
+    vector<T>* list = nullptr;
 };
 
 void InitDisplay(int &height, int &width){
     initscr();            // Inicializa ncurses
     start_color();
-    cbreak();             // Deshabilita el buffering de línea
+    //cbreak();             // Deshabilita el buffering de línea
+    raw();
     noecho();             // No mostrar la entrada de teclas
     keypad(stdscr, TRUE); // Habilitar teclas especiales
     curs_set(0);          // Ocultar el cursor
@@ -238,7 +287,7 @@ int nomain() {
     return 0;
 }
 
-ParentWin *win1, *win2, *win3;
+// ParentWin *win1, *win2, *win3, *win4;
 
 void PrintTitles(){
     //         1         2         3         4         5         6         7 
@@ -247,15 +296,15 @@ void PrintTitles(){
     //12345 1234.678901  192.168.115.199 192.168.115.199  ICMP  99999
     //  111   19.210  20.190.157.96   192.168.0.8       TCP   1434│  
     //01 9a 6f 54 00 00 01 01 08 0a bc 51 af 3a 15 95   ..oT.......Q.:..
-    mvwprintw(win1->win, 0, 2, "[No.]");
-    mvwprintw(win1->win, 0, 9, "[Time]");
-    mvwprintw(win1->win, 0, 20, "[Source]");
-    mvwprintw(win1->win, 0, 36, "[Destination]");
-    mvwprintw(win1->win, 0, 52, "[Prot]");
-    mvwprintw(win1->win, 0, 60, "[Len]");
+    // mvwprintw(win1->win, 0, 2, "[No.]");
+    // mvwprintw(win1->win, 0, 9, "[Time]");
+    // mvwprintw(win1->win, 0, 20, "[Source]");
+    // mvwprintw(win1->win, 0, 36, "[Destination]");
+    // mvwprintw(win1->win, 0, 52, "[Prot]");
+    // mvwprintw(win1->win, 0, 60, "[Len]");
     // wmove(win, 1, 1);
     // int h, w;
     // getmaxyx(win, h, w);
     // mvprintw(0, 0, "%d,%d", h, w);
-    win1->refresh();
+    // win1->refresh();
 }
