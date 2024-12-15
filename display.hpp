@@ -25,10 +25,10 @@ template<typename T>
 class SubWindow : public Window {
 public:
     SubWindow(int height, int width, int y, int x) : Window(height, width, y, x) {}
-    SubWindow(int height, int width, int y, int x, void (*ListManager)(WINDOW*, vector<T>&, int, int)) : Window(height, width, y, x), ListManager(ListManager) {}
+    SubWindow(int height, int width, int y, int x, void (*ListManager)(WINDOW*, vector<T>&, int, int, int)) : Window(height, width, y, x), ListManager(ListManager) {}
 
     List<T>* objList;
-    void (*ListManager)(WINDOW*, vector<T>&, int, int) = nullptr;
+    void (*ListManager)(WINDOW*, vector<T>&, int, int, int) = nullptr;
 
     void SetSub(WINDOW *parent) {
         this->win = derwin(parent, this->height, this->width, this->y, this->x);
@@ -50,7 +50,7 @@ public:
                         wattron(this->win, A_REVERSE);
                     }
 
-                    ListManager(this->win, objList->list, option_index, i);
+                    ListManager(this->win, objList->list, option_index, i, width);
 
                     wattroff(this->win, A_REVERSE);
                 }
@@ -76,10 +76,13 @@ public:
     virtual void DrawBorder() = 0;
     virtual void DrawSubWindow() = 0;
     virtual void EraseSubWindow() = 0;
+    virtual int GetSubHeight() = 0;
     virtual int GetCurrSelect() = 0;
+    virtual void ResetListPosition() = 0;
     virtual void moveSelection(int direction) = 0;
-    virtual void SetLink(BaseParentWin* linkedWin) = 0;
-    virtual BaseParentWin* GetLink() = 0;
+    virtual void AddLinkedWin(BaseParentWin* linkedWin) = 0;
+    virtual const std::vector<BaseParentWin*>& GetLinkedWins() const = 0;
+    virtual void UpdateList() = 0;
 };
 
 template<typename T>
@@ -92,7 +95,7 @@ public:
         subw.SetSub(this->win);
     }
 
-    ParentWin(int height, int width, int y, int x, void (*ListManager)(WINDOW*, vector<T>&, int, int)) : BaseParentWin(height, width, y, x), subw(height - 2, width - 2, 1, 1, ListManager){
+    ParentWin(int height, int width, int y, int x, void (*ListManager)(WINDOW*, vector<T>&, int, int, int)) : BaseParentWin(height, width, y, x), subw(height - 2, width - 2, 1, 1, ListManager){
         this->win = newwin(height, width, y, x);
         subw.SetSub(this->win);
         list = new vector<T>;
@@ -116,39 +119,75 @@ public:
         subw.erase();
     }
 
+    int GetSubHeight() override {
+        return subw.height;
+    }
+
     int GetCurrSelect() override {
         return subw.objList->current_selection;
+    }
+
+    void ResetListPosition() override {
+        subw.objList->current_selection = 0;
+        subw.objList->scroll_start = 0;
+    }
+
+    int* GetCurrIndex() {
+        return subw.objList->GetCurrIndex();
     }
 
     void moveSelection(int direction) override {
         if (subw.objList) {
             subw.objList->move_selection(direction);
         }
+
+        for(auto linked : linkedWins) {
+            linked->UpdateList();
+            linked->ResetListPosition();
+            linked->EraseSubWindow();
+            linked->DrawSubWindow();
+        }
     }
 
-    void SetLink(BaseParentWin* linkedWin) override{
-        this->linkedWin = linkedWin;
+    void AddLinkedWin(BaseParentWin* linkedWin) override{
+        linkedWins.push_back(linkedWin);
     }
 
-    BaseParentWin* GetLink() override{
-        return linkedWin;
+    const std::vector<BaseParentWin*>& GetLinkedWins() const override {
+        return linkedWins;
     }
 
-     vector<T>* GetList() {
+    vector<T>* GetList() {
         return list;
     }
 
-    // Setter para la lista
-    void SetList(vector<T>* newList) {
-        if (list != nullptr) {
-            delete list; // Liberar la lista actual, si existe
-        }
-        list = newList; // Asignar la nueva lista
-        //subw.SetList(list); // Vincular la nueva lista al subwindow si aplica
+    // template<typename U>
+    // void SetLinkedlist(vector<T>* list) {
+    //     if (linkedlist != nullptr) {
+    //         delete linkedlist; // Liberar la lista actual, si existe
+    //     }
+    //     linkedlist = list;
+    // }
+
+    // Getter para ListGenerator
+    void (*GetListGenerator() const)(vector<T>*) {
+        return ListGenerator;
+    }
+
+    // Setter para ListGenerator
+    void SetListGenerator(void (*func)(vector<T>*)) {
+        ListGenerator = func;
+    }
+
+    void UpdateList() {
+        if(ListGenerator) ListGenerator(list);
     }
 
     SubWindow<T> subw;
-    BaseParentWin* linkedWin = nullptr;
+    vector<BaseParentWin*> linkedWins;
+    // void (*ListGenerator)(vector<T>*) = nullptr;
+    void (*ListGenerator)(vector<T>*) = nullptr;
+    // static PacketData* currentPacket;
     vector<T>* list = nullptr;
 };
 
@@ -170,8 +209,8 @@ void InitDisplay(int &height, int &width){
 void EndDisplay() {
     curs_set(1);
     endwin();
-    printf("bye bye");
-    exit(0);
+    printf("bye bye\n");
+    // exit(0);
 }
 
 int nomain() {

@@ -11,6 +11,14 @@
 #include <vector>               // Contenedor de datos dinámico
 #include <pthread.h>            // Hilos de ejecución en C
 
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <net/ethernet.h>
+#include <netinet/ip_icmp.h>
+#include <netinet/udp.h>
+#include <netinet/tcp.h>
+#include <netinet/ip.h>
+
 #include <ncurses.h>            // Librería de interfaz de usuario en terminal
 #include <sys/ioctl.h>          // Entradas/salidas del sistema
 #include <signal.h>             // Manipulación de señales

@@ -1,5 +1,3 @@
-// void CreateSecLists(vector<u_char>& data, bpf_u_int32 length);
-
 struct DataBlocks {
     string hexData; // Lista de cadenas en formato hexadecimal
     string rawData; // Lista de cadenas en formato "raw"
@@ -17,6 +15,9 @@ public:
     }
 private:
 };
+
+vector<PacketData>* packets;
+int* packetIndex;
 
 // void draw_rawData(SubWindow& subw, vector<DataBlocks>& list, int option_index, int y);
 
@@ -37,6 +38,10 @@ public:
     int scroll_start;
     vector<T>& list;
     short listHeight;
+
+    int* GetCurrIndex() {
+        return &current_selection;
+    }
 
     void move_selection(int direction) override {
         int new_selection = current_selection + direction;
@@ -120,11 +125,11 @@ public:
     // }
 };
 
-vector<PacketData> packets;
+// vector<PacketData> packets;
 // vector<PacketData> packets;
 int autoScroll = true;
 
-void main_packet_data(WINDOW* win, vector<PacketData>& list, int option_index, int y) {
+void main_packet_data(WINDOW* win, vector<PacketData>& list, int option_index, int y, int width) {
     const struct ip* ip_header;   // Estructura para el encabezado IP
     int ip_header_length;         // Longitud del encabezado IP
 
@@ -144,7 +149,7 @@ void main_packet_data(WINDOW* win, vector<PacketData>& list, int option_index, i
     // Obtener protocolo
     int protocol = ip_header->ip_p; // Campo ip_p contiene el número de protocolo (TCP, UDP, etc.)
     string protText;
-    switch (protocol) {
+    switch(protocol) {
         case IPPROTO_TCP:
             protText = "TCP";
             break;
@@ -157,9 +162,82 @@ void main_packet_data(WINDOW* win, vector<PacketData>& list, int option_index, i
         case IPPROTO_IP:
             protText = "IP";
             break;
+        case IPPROTO_IGMP:
+            protText = "IGMP";
+            break;
+        case IPPROTO_IPIP:
+            protText = "IPIP";
+            break;
+        case IPPROTO_EGP:
+            protText = "EGP";
+            break;
+        case IPPROTO_PUP:
+            protText = "PUP";
+            break;
+        case IPPROTO_IDP:
+            protText = "IDP";
+            break;
+        case IPPROTO_TP:
+            protText = "TP";
+            break;
+        case IPPROTO_DCCP:
+            protText = "DCCP";
+            break;
+        case IPPROTO_IPV6:
+            protText = "IPV6";
+            break;
+        case IPPROTO_RSVP:
+            protText = "RSVP";
+            break;
+        case IPPROTO_GRE:
+            protText = "GRE";
+            break;
+        case IPPROTO_ESP:
+            protText = "ESP";
+            break;
+        case IPPROTO_AH:
+            protText = "AH";
+            break;
+        case IPPROTO_MTP:
+            protText = "MTP";
+            break;
+        case IPPROTO_BEETPH:
+            protText = "BEETPH";
+            break;
+        case IPPROTO_ENCAP:
+            protText = "ENCAP";
+            break;
+        case IPPROTO_PIM:
+            protText = "PIM";
+            break;
+        case IPPROTO_COMP:
+            protText = "COMP";
+            break;
+        case IPPROTO_L2TP:
+            protText = "L2TP";
+            break;
+        case IPPROTO_SCTP:
+            protText = "SCTP";
+            break;
+        case IPPROTO_UDPLITE:
+            protText = "UDPLITE";
+            break;
+        case IPPROTO_MPLS:
+            protText = "MPLS";
+            break;
+        case IPPROTO_ETHERNET:
+            protText = "ETHERNET";
+            break;
+        case IPPROTO_RAW:
+            protText = "RAW";
+            break;
+        case IPPROTO_MPTCP:
+            protText = "MPTCP";
+            break;
         default:
             protText = to_string(protocol);
             break;
+        
     }
 
     // Obtener tamaño del paquete
@@ -168,11 +246,15 @@ void main_packet_data(WINDOW* win, vector<PacketData>& list, int option_index, i
     mvwprintw(win, y, 0, "%5d %11f  %-15s %-15s  %4s  %5d", option_index + 1, list[option_index].elapsed_seconds.count(), source_ip, dest_ip, protText.c_str(), list[option_index].length);
 }
 
-void DrawRawData(WINDOW* win, vector<DataBlocks>& list, int option_index, int y){
+void DrawRawData(WINDOW* win, vector<DataBlocks>& list, int option_index, int y, int width){
     mvwprintw(win, y, 0, "%-48s  %-16s", list[option_index].hexData.c_str(), list[option_index].rawData.c_str());
 }
 
-void DrawString(WINDOW* win, vector<string>& list, int option_index, int y){
+void print_packet_info(WINDOW* win, vector<string>& list, int option_index, int y, int width) {
+    mvwprintw(win, y, 0, "%*s", -width, list[option_index].c_str());
+}
+
+void DrawString(WINDOW* win, vector<string>& list, int option_index, int y, int width){
     mvwprintw(win, y, 0, "%-40s", list[option_index].c_str());
 }
 
