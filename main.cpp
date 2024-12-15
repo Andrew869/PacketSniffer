@@ -1,54 +1,23 @@
 #include "includes.hpp"
 #include "display.hpp"
+#include "selectList.hpp"
 
 #define cmvprintw(c, y, x, format, ...) \
     do { \
-        attron(COLOR_PAIR(c)); \
+        attron(A_REVERSE); \
         mvprintw(y, x, format, ##__VA_ARGS__); \
-        attroff(COLOR_PAIR(c)); \
+        attroff(A_REVERSE); \
     } while (0)
 
-using namespace std;
-
-class packetData {
-public:
-    duration<double> elapsed_seconds;
-    vector<u_char> data;
-    bpf_u_int32 length;
-
-    packetData(duration<double> elapsed_seconds, const u_char* packet_ptr, bpf_u_int32 length) : length(length)  {
-        this->elapsed_seconds = elapsed_seconds;
-        data.assign(packet_ptr, packet_ptr + length);
-    }
-private:
-};
-
-class SelectList {
-public:
-    int index;
-    int length;
-
-};
-
 int link_hdr_length = 0;
-window *win1;
-vector<packetData> packets;
-int max_y, max_x;
-int packetCount = 0;
-steady_clock::time_point start_time, end_time;
 
-int current_selection = 0;
-int scroll_start = 0;
-
-int isAutoScroll = true;
-
-
-void InitDisplay(int &height, int &width);
-void EndDisplay();
-void *threadpcap(void *arg);
 void packetManager(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char *packetd_ptr);
-void draw_list();
-void move_selection(int direction);
+void *threadpcap(void *arg);
+
+int max_y, max_x;
+
+// int packetCount = 0;
+steady_clock::time_point start_time, end_time;
 
 int main(int argc, char const *argv[]) {
     pcap_if_t *alldevsp , *device;
@@ -56,8 +25,8 @@ int main(int argc, char const *argv[]) {
     int count = 0;
 
     // int packets_count = -1;
-    // char filters[100] = "port 80";InitDisplay
-    // char filters[] = "tcp port 22";
+    // char filters[100] = "port 80";
+    // char filters[] = "tcp port 22";z
     char filters[] = "";
 
     InitDisplay(max_y, max_x);
@@ -143,60 +112,108 @@ int main(int argc, char const *argv[]) {
     if (pcap_setfilter(capdev, &bpf)) {
         printf("ERR: pcap_setfilter() %s", pcap_geterr(capdev));
     }
+
     clear();
     refresh();
-    win1 = new window(max_y / 2, 66, 0, 0);
+    win1 = new ParentWin((max_y / 2)-4, max_x / 2, 3, 0);
     win1->init();
+    // win1->subw.win = subwin(win1->win, win1->height - 2, win1->width - 2, 1, 1);
+    // box(win1->subw.win, 0 ,0);
+    // mvwprintw(win1->subw.win, 1, 1, "hello");
+    // mvprintw(5, 0, "%d",win1->subw.win);
+    // win1->subw.refresh();
+    
+    win2 = new ParentWin(max_y / 2, max_x / 2, max_y / 2, 0);
+    win2->init();
+
+    // box(win2->subw.win, 0 ,0);
+     //mvwprintw(win2->subw.win, 1, 1, "hello");
+    // mvprintw(6, 0, "%d",win2->subw.win);
+     win2->subw.refresh();
+
+    win3 = new ParentWin(max_y-4, max_x / 2, 3, max_x / 2);
+    win3->init();
+    PrintTitles();
+
+    win4=new ParentWin(3,max_x,0,0);
+    win4->init();
+    printMenu();
+
+    // mvprintw(7, 0, "%d",win3->subw.win);
+    // win3->subw.refresh();
+    mainList = new MainList(win1->subw, packets, main_packet_data);
+    
+
+    // lists.emplace_back(win1->subw, packets, main_packet_data);
+    // lists.emplace_back(win3->subw, packets, main_packet_data);
+    // lists.emplace_back(win1->subw, packets, main_packet_data);
 
     start_time = steady_clock::now();
     // if (pcap_loop(capdev, packets_count, packetManager, (u_char *)NULL)) {
     //     printf("ERR: pcap_loop() failed!\n");
     //     exit(1);
     // }
+
     pthread_t captureThread;
     int threadError = pthread_create(&captureThread, NULL, threadpcap, (void *)capdev);
     if (threadError) {
         fprintf(stderr, "Error al crear el hilo: %d\n", threadError);
         return 1;
     }
-
+    
     int key;
     while ((key = getch()) != 'q') {
         switch (key) {
             case KEY_UP:
-                isAutoScroll = false;
-                move_selection(-1);
+                autoScroll = false;
+                mainList->move_selection(-1);
                 break;
             case KEY_DOWN:
-                isAutoScroll = false;
-                move_selection(1);
+                autoScroll = false;
+                mainList->move_selection(1);
+                break;
+            case 'w':
+                // autoScroll = false;
+                mainList->rawList->move_selection(-1);
+                break;
+            case 's':
+                // autoScroll = false;
+                mainList->rawList->move_selection(1);
                 break;
             case KEY_HOME:
-                isAutoScroll = false;
-                current_selection = 0;
-                move_selection(-1);
+                autoScroll = false;
+                // current_selection = 0;
+                mainList->current_selection = 0;
+                mainList->move_selection(-1);
                 break;
             case KEY_END:
-                isAutoScroll = true;
-                current_selection = packets.size() - 1;
-                move_selection(1);
+                autoScroll = true;
+                mainList->current_selection = mainList->list.size() - 1;
+                // current_selection = packets.size() - 1;
+                mainList->move_selection(1);
+                save_to_csv("output.csv", *mainList);
                 break;
             case KEY_BACKSPACE:
+                win1->erase();
+                win2->erase();
+                win3->erase();
                 win1->init();
-                win1->refresh();
+                win2->init();
+                win3->init();
+                PrintTitles();
                 break;
         }
         // mvprintw(max_y - 2, max_x - 10, "%6d", current_selection);
         // mvprintw(max_y - 1, max_x - 10, "%6d", scroll_start);
     }
-
     // Espera a que el hilo de captura termine (opcional)
     pthread_join(captureThread, NULL);
 
     // Cerrar la captura
     pcap_close(capdev);
-
+    
     EndDisplay();
+    
 
     return 0;
 }
@@ -206,11 +223,10 @@ void packetManager(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char 
     duration<double> elapsed_seconds = duration_cast<duration<double>>(end_time - start_time);
     packets.push_back({elapsed_seconds, packetd_ptr, pkthdr->len});
 
-    if(isAutoScroll){
-        move_selection(1);
+    if(autoScroll){
+        mainList->move_selection(1);
     }
 }
-
 
 void *threadpcap(void *arg) {
     pcap_t *capdev = (pcap_t *)arg;
@@ -222,77 +238,4 @@ void *threadpcap(void *arg) {
     }
 
     return NULL;
-}
-
-void draw_list() {
-    int available_rows = win1->max_y;
-
-    for (int i = 0; i < available_rows; ++i) {
-        int option_index = scroll_start + i;
-
-        if (option_index < packets.size()) {
-            if (option_index == current_selection) {
-                wattron(win1->win, A_REVERSE);
-            }
-            const struct ip* ip_header;   // Estructura para el encabezado IP
-            int ip_header_length;         // Longitud del encabezado IP
-
-            // Saltar el encabezado Ethernet si es necesario (usualmente 14 bytes)
-
-            // Obtener el encabezado IP desde los datos del paquete
-            ip_header = (struct ip*)(packets[option_index].data.data() + 14);  // +14 para saltar el encabezado Ethernet (si presente)
-            ip_header_length = ip_header->ip_hl * 4; // Longitud del encabezado IP en bytes (ip_hl está en palabras de 4 bytes)
-
-            // Obtener direcciones IP de origen y destino
-            char source_ip[INET_ADDRSTRLEN];
-            char dest_ip[INET_ADDRSTRLEN];
-
-            inet_ntop(AF_INET, &(ip_header->ip_src), source_ip, INET_ADDRSTRLEN); // IP de origen
-            inet_ntop(AF_INET, &(ip_header->ip_dst), dest_ip, INET_ADDRSTRLEN);   // IP de destino
-
-            // Obtener protocolo
-            int protocol = ip_header->ip_p; // Campo ip_p contiene el número de protocolo (TCP, UDP, etc.)
-            string protText;
-            switch (protocol) {
-                case IPPROTO_TCP:
-                    protText = "TCP";
-                    break;
-                case IPPROTO_UDP:
-                    protText = "UDP";
-                    break;
-                case IPPROTO_ICMP:
-                    protText = "ICMP";
-                    break;
-                case IPPROTO_IP:
-                    protText = "IP";
-                    break;
-                default:
-                    protText = to_string(protocol);
-                    break;
-            }
-
-            // Obtener tamaño del paquete
-            int packet_size = ntohs(ip_header->ip_len);
-
-            mvwprintw(win1->win, i + 1, 1, "%5d %11f  %-15s %-15s  %4s  %6d", option_index, packets[option_index].elapsed_seconds.count(), source_ip, dest_ip, protText.c_str(), packet_size);
-            wattroff(win1->win, A_REVERSE);
-        }
-    }
-    win1->refresh();
-}
-
-void move_selection(int direction) {
-    int new_selection = current_selection + direction;
-
-    if (new_selection >= 0 && new_selection < static_cast<int>(packets.size())) {
-        current_selection = new_selection;
-    }
-
-    if (current_selection < scroll_start) {
-        scroll_start = current_selection;
-    } else if (current_selection >= scroll_start + win1->max_y) {
-        scroll_start = current_selection - win1->max_y + 1;
-    }
-
-    draw_list();
 }
