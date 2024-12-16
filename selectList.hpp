@@ -525,6 +525,152 @@ void save_to_csv(const string& filename, MainList& mainList) {
 
     file.close();
 }
+
+void save_to_excel(const string& filename, MainList& mainList) {
+    lxw_workbook *workbook = workbook_new(filename.c_str());
+    lxw_worksheet *worksheet = workbook_add_worksheet(workbook, NULL);
+
+    // Definir encabezados
+    worksheet_write_string(worksheet, 0, 0, "Packet No", NULL);
+    worksheet_write_string(worksheet, 0, 1, "Time", NULL);
+    worksheet_write_string(worksheet, 0, 2, "Source IP", NULL);
+    worksheet_write_string(worksheet, 0, 3, "Destination IP", NULL);
+    worksheet_write_string(worksheet, 0, 4, "Protocol", NULL);
+    worksheet_write_string(worksheet, 0, 5, "Length", NULL);
+    worksheet_write_string(worksheet, 0, 6, "Hex Data", NULL);
+    worksheet_write_string(worksheet, 0, 7, "Raw Data", NULL);
+    worksheet_write_string(worksheet, 0, 8, "Info", NULL);
+
+    // Recorrer cada paquete y escribir en Excel
+    for (size_t i = 0; i < mainList.list.size(); i++) {
+        mainList.current_selection = i;
+
+        // Generar bloques rawData e info
+        vector<DataBlocks>& rawBlocks = mainList.splitIntoBlocks();
+        vector<string>& info = mainList.getInfo();
+        PacketData& packet = mainList.list[i];
+
+        // Extraer IPs
+        const struct ip* ip_header = (struct ip*)(packet.data.data() + 14);
+        char source_ip[INET_ADDRSTRLEN];
+        char dest_ip[INET_ADDRSTRLEN];
+
+        inet_ntop(AF_INET, &(ip_header->ip_src), source_ip, INET_ADDRSTRLEN);
+        inet_ntop(AF_INET, &(ip_header->ip_dst), dest_ip, INET_ADDRSTRLEN);
+
+        // Protocolo
+       int protocol = ip_header->ip_p; // Campo ip_p contiene el número de protocolo (TCP, UDP, etc.)
+    string protText;
+    switch(protocol) {
+        case IPPROTO_TCP:
+            protText = "TCP";
+            break;
+        case IPPROTO_UDP:
+            protText = "UDP";
+            break;
+        case IPPROTO_ICMP:
+            protText = "ICMP";
+            break;
+        case IPPROTO_IP:
+            protText = "IP";
+            break;
+        case IPPROTO_IGMP:
+            protText = "IGMP";
+            break;
+        case IPPROTO_IPIP:
+            protText = "IPIP";
+            break;
+        case IPPROTO_EGP:
+            protText = "EGP";
+            break;
+        case IPPROTO_PUP:
+            protText = "PUP";
+            break;
+        case IPPROTO_IDP:
+            protText = "IDP";
+            break;
+        case IPPROTO_TP:
+            protText = "TP";
+            break;
+        case IPPROTO_DCCP:
+            protText = "DCCP";
+            break;
+        case IPPROTO_IPV6:
+            protText = "IPV6";
+            break;
+        case IPPROTO_RSVP:
+            protText = "RSVP";
+            break;
+        case IPPROTO_GRE:
+            protText = "GRE";
+            break;
+        case IPPROTO_ESP:
+            protText = "ESP";
+            break;
+        case IPPROTO_AH:
+            protText = "AH";
+            break;
+        case IPPROTO_MTP:
+            protText = "MTP";
+            break;
+        case IPPROTO_BEETPH:
+            protText = "BEETPH";
+            break;
+        case IPPROTO_ENCAP:
+            protText = "ENCAP";
+            break;
+        case IPPROTO_PIM:
+            protText = "PIM";
+            break;
+        case IPPROTO_COMP:
+            protText = "COMP";
+            break;
+        case IPPROTO_SCTP:
+            protText = "SCTP";
+            break;
+        case IPPROTO_UDPLITE:
+            protText = "UDPLITE";
+            break;
+        case IPPROTO_MPLS:
+            protText = "MPLS";
+            break;
+        case IPPROTO_RAW:
+            protText = "RAW";
+            break;
+        default:
+            protText = to_string(protocol);
+            break;
+        
+    }
+
+        // Combinar rawData y hexData
+        string hexDataCombined, rawDataCombined;
+        for (const auto& block : rawBlocks) {
+            hexDataCombined += block.hexData + " ";
+            rawDataCombined += block.rawData + " ";
+        }
+
+        // Combinar la información
+        string infoCombined;
+        for (const auto& line : info) {
+            infoCombined += line + " | ";
+        }
+
+        // Escribir datos en la hoja
+        worksheet_write_number(worksheet, i + 1, 0, i + 1, NULL);
+        worksheet_write_number(worksheet, i + 1, 1, packet.elapsed_seconds.count(), NULL);
+        worksheet_write_string(worksheet, i + 1, 2, source_ip, NULL);
+        worksheet_write_string(worksheet, i + 1, 3, dest_ip, NULL);
+        worksheet_write_string(worksheet, i + 1, 4, protText.c_str(), NULL);
+        worksheet_write_number(worksheet, i + 1, 5, packet.length, NULL);
+        worksheet_write_string(worksheet, i + 1, 6, hexDataCombined.c_str(), NULL);
+        worksheet_write_string(worksheet, i + 1, 7, rawDataCombined.c_str(), NULL);
+        worksheet_write_string(worksheet, i + 1, 8, infoCombined.c_str(), NULL);
+    }
+
+    // Guardar y cerrar el libro de Excel
+    workbook_close(workbook);
+}
 // void splitIntoBlocks(vector<DataBlocks>& blocks, vector<u_char>& data, bpf_u_int32 length) {
 //     //vector<DataBlocks> blocks; // Estructura para almacenar los bloques
 

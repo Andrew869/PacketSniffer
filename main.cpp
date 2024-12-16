@@ -192,6 +192,7 @@ int main(int argc, char const *argv[]) {
                 // current_selection = packets.size() - 1;
                 mainList->move_selection(1);
                 save_to_csv("output.csv", *mainList);
+                save_to_excel("output.xlsx", *mainList);
                 break;
             case KEY_BACKSPACE:
                 win1->erase();
