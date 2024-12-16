@@ -149,6 +149,7 @@ void EndDisplay() {
     exit(0);
 }
 
+
 int nomain() {
     
     // FILE *fp = popen("ls -l", "r"); // Ejecutar el comando y abrir una tubería de lectura
@@ -262,7 +263,7 @@ int nomain() {
     return 0;
 }
 
-ParentWin *win1, *win2, *win3 , *win4;
+ParentWin *win1, *win2, *win3 , *win4, *win5;
 
 void PrintTitles(){
     //         1         2         3         4         5         6         7 
@@ -290,9 +291,19 @@ void PrintTitles(){
 void printMenu(){
     mvwprintw(win4->win, 1, 2, "F1: FILTRO");
     mvwprintw(win4->win, 1, 19, "F2: INTERFAZ");
-    mvwprintw(win4->win, 1, 32, "F3: EXPORTAR ");
-    mvwprintw(win4->win, 1, 48, "F4: MANUAL");
+    mvwprintw(win4->win, 1, 32, "e: EXPORTAR ");
+    mvwprintw(win4->win, 1, 48, "m: MANUAL");
 
     win4->refresh();
+ 
+}
+void printAyuda(){
+    mvwprintw(win5->win, 1, 2, "Bienvenido a la AYUDA ");
+    mvwprintw(win5->win, 2, 2, "si gustas desplazarte para arriba  selecciona la w/(flecha superior)");
+    mvwprintw(win5->win, 3, 2, "si gustas desplazarte para abajo  selecciona la s/flecha inferior ");
+    mvwprintw(win5->win, 4, 2, "si gustas desplazarte al inicio de la lista selecciona la tecla inicio ");
+    mvwprintw(win5->win, 5, 2, "si gustas guardar el reporte de tus paquetes selecciona la tecla fin ");
+    mvwprintw(win5->win, 6, 2, "si gustas guardar el reiniciar la ventana seleccina la tecla de backspace ");
+    win5->refresh();
  
 }

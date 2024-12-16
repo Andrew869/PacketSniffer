@@ -30,6 +30,8 @@
 #include <netinet/udp.h>    // Para la estructura udphdr
 #include <arpa/inet.h>      // Para inet_ntoa
 #include <cstring>          // Si usas funciones estándar de C
+#include<fstream>
+#include <xlsxwriter.h>
 
 
 using namespace std;

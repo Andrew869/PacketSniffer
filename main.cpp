@@ -31,6 +31,10 @@ int main(int argc, char const *argv[]) {
 
     InitDisplay(max_y, max_x);
     refresh();
+    // win5= new ParentWin(max_y,max_x,4,3);
+    // win5->init();
+    // printAyuda();
+
 
     if(pcap_findalldevs(&alldevsp ,errbuf)) {
 		// printf("Error finding devices : %s" , errbuf);
@@ -112,11 +116,15 @@ int main(int argc, char const *argv[]) {
     if (pcap_setfilter(capdev, &bpf)) {
         printf("ERR: pcap_setfilter() %s", pcap_geterr(capdev));
     }
-
+    
     clear();
     refresh();
     win1 = new ParentWin((max_y / 2)-4, max_x / 2, 3, 0);
     win1->init();
+
+    win5= new ParentWin(max_y,max_x,4,3);
+    win5->init();
+    printAyuda();
     // win1->subw.win = subwin(win1->win, win1->height - 2, win1->width - 2, 1, 1);
     // box(win1->subw.win, 0 ,0);
     // mvwprintw(win1->subw.win, 1, 1, "hello");
@@ -142,6 +150,7 @@ int main(int argc, char const *argv[]) {
     // mvprintw(7, 0, "%d",win3->subw.win);
     // win3->subw.refresh();
     mainList = new MainList(win1->subw, packets, main_packet_data);
+    
 
     // lists.emplace_back(win1->subw, packets, main_packet_data);
     // lists.emplace_back(win3->subw, packets, main_packet_data);
@@ -159,7 +168,7 @@ int main(int argc, char const *argv[]) {
         fprintf(stderr, "Error al crear el hilo: %d\n", threadError);
         return 1;
     }
-
+    
     int key;
     while ((key = getch()) != 'q') {
         switch (key) {
@@ -190,7 +199,10 @@ int main(int argc, char const *argv[]) {
                 mainList->current_selection = mainList->list.size() - 1;
                 // current_selection = packets.size() - 1;
                 mainList->move_selection(1);
+                save_to_csv("output.csv", *mainList);
+                save_to_excel("output.xlsx", *mainList);
                 break;
+            
             case KEY_BACKSPACE:
                 win1->erase();
                 win2->erase();
@@ -204,14 +216,14 @@ int main(int argc, char const *argv[]) {
         // mvprintw(max_y - 2, max_x - 10, "%6d", current_selection);
         // mvprintw(max_y - 1, max_x - 10, "%6d", scroll_start);
     }
-
     // Espera a que el hilo de captura termine (opcional)
     pthread_join(captureThread, NULL);
 
     // Cerrar la captura
     pcap_close(capdev);
-
+    
     EndDisplay();
+    
 
     return 0;
 }
