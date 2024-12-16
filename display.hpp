@@ -1,3 +1,14 @@
+// class BaseWinParam {
+// public:
+//     int width, height;
+//     int y, x;
+// };
+
+// template<typename T>
+// struct WinParam : public BaseWinParam {
+//     void (*ListGenerator)(vector<T>*) = nullptr;
+// };
+
 class Window {
 public:
     Window(int height, int width, int y, int x){
@@ -19,6 +30,22 @@ public:
     WINDOW *win;
     int width, height;
     int y, x;
+};
+
+class BasicWin : public Window {
+public:
+    BasicWin(int height, int width, int y, int x) : Window(height, width, y, x) {
+        win = newwin(height, width, y, x);
+    }
+
+    void PrintM(const char* msg, ...){
+        erase();
+        va_list args;                // Inicializa la lista de argumentos variables
+        va_start(args, msg);         // Comienza a procesar los argumentos a partir de 'msg'
+        vw_printw(win, msg, args);   // Usa vw_printw para manejar la lista de argumentos variables
+        va_end(args);                // Finaliza el procesamiento de argumentos
+        refresh();
+    }
 };
 
 template<typename T>
@@ -73,34 +100,44 @@ public:
 
     virtual ~BaseParentWin() {}
 
+    // virtual void CreateWin(WINDOW* win) = 0;
     virtual void DrawBorder() = 0;
     virtual void DrawSubWindow() = 0;
     virtual void EraseSubWindow() = 0;
     virtual int GetSubHeight() = 0;
     virtual int GetCurrSelect() = 0;
-    virtual void ResetListPosition() = 0;
+    virtual void SelectLast() = 0;
+    virtual void SelectFirst() = 0;
     virtual void moveSelection(int direction) = 0;
     virtual void AddLinkedWin(BaseParentWin* linkedWin) = 0;
-    virtual const std::vector<BaseParentWin*>& GetLinkedWins() const = 0;
+    virtual const vector<BaseParentWin*>& GetLinkedWins() const = 0;
     virtual void UpdateList() = 0;
+    // virtual void EnableTypeMode() = 0;
+    virtual string EnableTypeMode() = 0;
+    // virtual char* GetInput() = 0;
 };
+
+BasicWin *menuWin, *mainWin, *conWin;
 
 template<typename T>
 class ParentWin : public BaseParentWin {
 public:
     ParentWin(int height, int width, int y, int x) : BaseParentWin(height, width, y, x), subw(height - 2, width - 2, 1, 1){
-    // parentwin(int height, int width, int y, int x) : window(height, width, y, x){
-        this->win = newwin(height, width, y, x);
-        // subw = new subwindow(this->win, height - 2, width - 2, 1, 1);
+        this->win = derwin(mainWin->win, height, width, y, x);
         subw.SetSub(this->win);
     }
 
     ParentWin(int height, int width, int y, int x, void (*ListManager)(WINDOW*, vector<T>&, int, int, int)) : BaseParentWin(height, width, y, x), subw(height - 2, width - 2, 1, 1, ListManager){
-        this->win = newwin(height, width, y, x);
+        this->win = derwin(mainWin->win, height, width, y, x);
         subw.SetSub(this->win);
         list = new vector<T>;
         subw.SetList(list);
     }
+
+    // void CreateWin(WINDOW* win) {
+    //     this->win = derwin(win, height, width, y, x);
+    //     subw.SetSub(this->win);
+    // }
 
     ~ParentWin() {
         delete list;
@@ -127,9 +164,14 @@ public:
         return subw.objList->current_selection;
     }
 
-    void ResetListPosition() override {
+    void SelectLast() override {
+        subw.objList->current_selection = list->size() - 1;
+        subw.objList->move_selection(1);
+    }
+
+    void SelectFirst() override {
         subw.objList->current_selection = 0;
-        subw.objList->scroll_start = 0;
+        subw.objList->move_selection(-1);
     }
 
     int* GetCurrIndex() {
@@ -143,7 +185,7 @@ public:
 
         for(auto linked : linkedWins) {
             linked->UpdateList();
-            linked->ResetListPosition();
+            linked->SelectFirst();
             linked->EraseSubWindow();
             linked->DrawSubWindow();
         }
@@ -153,7 +195,7 @@ public:
         linkedWins.push_back(linkedWin);
     }
 
-    const std::vector<BaseParentWin*>& GetLinkedWins() const override {
+    const vector<BaseParentWin*>& GetLinkedWins() const override {
         return linkedWins;
     }
 
@@ -183,12 +225,76 @@ public:
         if(ListGenerator) ListGenerator(list);
     }
 
+    // void EnableTypeMode() {
+    //     wmove(subw.win, 0, 0);
+    //     memset(input, '\0', sizeof(input));
+    //     wscanw(subw.win, "%s", &input);
+    // }
+
+    string EnableTypeMode() {
+        string input;  // Cadena para almacenar el texto ingresado
+        int cursor_x = 0;   // Posición inicial del cursor
+        int cursor_y = 0;
+
+        keypad(subw.win, TRUE);
+
+        wmove(subw.win, cursor_y, cursor_x);  // Colocar el cursor al inicio
+        wrefresh(subw.win);
+
+        while (true) {
+            int ch = wgetch(subw.win);  // Leer una tecla
+
+            switch (ch) {
+                case 27:  // ESC para salir
+                    return input;
+
+                case KEY_BACKSPACE:  // Retroceso
+                case 127:            // Compatibilidad con teclados
+                    if (cursor_x > 0) {
+                        input.pop_back();
+                        cursor_x--;
+                        mvwaddch(subw.win, cursor_y, cursor_x, ' ');  // Borra el carácter
+                        wmove(subw.win, cursor_y, cursor_x);          // Mueve el cursor atrás
+                    }
+                    break;
+
+                case KEY_LEFT:  // Mover cursor a la izquierda
+                    if (cursor_x > 0) cursor_x--;
+                    wmove(subw.win, cursor_y, cursor_x);
+                    break;
+
+                case KEY_RIGHT:  // Mover cursor a la derecha
+                    if (cursor_x < (int)input.size()) cursor_x++;
+                    wmove(subw.win, cursor_y, cursor_x);
+                    break;
+
+                case '\n':  // Enter (finalizar entrada)
+                    return input;
+
+                default:  // Cualquier otra tecla (añadir texto)
+                    if (isprint(ch) && cursor_x < subw.width - 1) {
+                        input.push_back(ch);
+                        mvwaddch(win, cursor_y, cursor_x, ch);
+                        cursor_x++;
+                    }
+                    break;
+            }
+
+            wrefresh(subw.win);  // Refresca la ventana para mostrar cambios
+        }
+    }
+
+    // char* GetInput() {
+    //     return input;
+    // }
+
     SubWindow<T> subw;
     vector<BaseParentWin*> linkedWins;
     // void (*ListGenerator)(vector<T>*) = nullptr;
     void (*ListGenerator)(vector<T>*) = nullptr;
     // static PacketData* currentPacket;
     vector<T>* list = nullptr;
+    // char input[100];
 };
 
 void InitDisplay(int &height, int &width){
@@ -211,119 +317,6 @@ void EndDisplay() {
     endwin();
     printf("bye bye\n");
     // exit(0);
-}
-
-int nomain() {
-    
-    // FILE *fp = popen("ls -l", "r"); // Ejecutar el comando y abrir una tubería de lectura
-
-    // // Leer la salida del comando línea por línea
-    // if (fp) {
-    //     char buffer[128];
-    //     while (fgets(buffer, sizeof(buffer), fp) != nullptr) {
-    //         printf("%s", buffer); // Imprimir la salida del comando
-    //     }
-    //     pclose(fp); // Cerrar la tubería
-    // }
-
-    steady_clock::time_point start_time, end_time;
-    duration<double> elapsed_seconds;
-
-    int width, height;
-    WINDOW *win1, *win2, *win3;
-    vector<string> list;
-    string device = "wlo1";
-    // signal(SIGINT, ExitProgram);
-    // signal(SIGWINCH, ExitProgram);
-    // signal(SIGKILL, ExitProgram);
-
-    initscr();            // Inicializa ncurses
-    start_color();
-    cbreak();             // Deshabilita el buffering de línea
-    noecho();             // No mostrar la entrada de teclas
-    keypad(stdscr, TRUE); // Habilitar teclas especiales
-    curs_set(0);          // Ocultar el cursor
-    nodelay(stdscr, TRUE);// No bloquear en getch()
-    timeout(50);         // Esperar 100ms en cada iteración
-    getmaxyx(stdscr, height, width);
-
-    init_pair(1, COLOR_RED, COLOR_BLACK);
-    init_pair(2, COLOR_BLACK, COLOR_WHITE);
-
-    // box(stdscr, 0, 0);
-    // bkgd(COLOR_PAIR(1));
-    refresh();
-    // mvprintw(4, 30, "Hello World");
-
-    int width1 = width, height1 = height / 2;
-    int max_y = height1 - 2;
-    win1 = newwin(height1, width1, 0, 0);
-    box(win1, 0, 0);
-    wbkgd(win1, COLOR_PAIR(1));
-    wmove(win1, 1, 1);
-    // wattron(win1, COLOR_PAIR(2));
-    // mvprintw(11, 5, "main: (%d, %d)", width, height);
-    // mvaddch(1, 0, 'L');
-
-    // mvwprintw(win1, 5, 10, "win1: (%d, %d)", width, height);
-        // refresh();
-    // wrefresh(win1);
-
-    int x = 0;
-    int y = 0;
-    start_time = steady_clock::now();
-    while (true) {
-        end_time = steady_clock::now();
-        elapsed_seconds = duration_cast<duration<double>>(end_time - start_time);
-        list.push_back(to_string(elapsed_seconds.count()));
-        int length = list.size();
-        int index = 0;
-        
-        int cur_y = length < max_y ? length : max_y;
-        for (size_t y = 1; y <= cur_y; y++) {
-            index = length - y;
-            
-            mvwprintw(win1, y, 1, list[index].c_str());
-        }
-        wrefresh(win1);
-        
-        // mvwprintw(win1, height1 - 1, 1, "(%03d,%d)", x, y);
-        // mvwaddch(win1, y, x, 'L');
-        // wrefresh(win1);
-        // if(x < width1 - 1)
-        //     x++;
-        // else{
-        //     x = 0;
-        //     if(y < height1 - 1)
-        //         y++;
-        //     else {
-        //         endwin();
-        //         exit(0);
-        //     }
-                
-        // }
-        
-        
-
-        int ch = getch();
-        switch (ch) {
-            case 'q':
-                // ExitProgram();
-                break;
-            case 'a':
-                endwin();
-                system("ls -l");
-                break;
-        }
-        // napms(100);
-        // getch();
-    }
-    // wattroff(win1, COLOR_PAIR(2));
-    // getch();
-
-    endwin();
-
-    return 0;
 }
 
 // ParentWin *win1, *win2, *win3, *win4;

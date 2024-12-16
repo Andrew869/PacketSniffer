@@ -1,30 +1,20 @@
 #include "includes.hpp"
 #include "selectList.hpp"
 #include "display.hpp"
+#include "packetCapture.hpp"
+#include "state.hpp"
 
-#define cmvprintw(c, y, x, format, ...) \
-    do { \
-        attron(A_REVERSE); \
-        mvprintw(y, x, format, ##__VA_ARGS__); \
-        attroff(A_REVERSE); \
-    } while (0)
-
-#define STATE_M 0
-#define STATE_I 1
-#define STATE_F 2
-#define STATE_S 3
-
+char filters[100];
 
 int link_hdr_length = 0;
 
 void packetManager(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char *packetd_ptr);
-void *threadpcap(void *arg);
+// void *threadpcap(void *arg);
 void MainLoop();
 void GetDevices(vector<string>* devs);
 void GetstructuredData(vector<string>* list);
 void splitIntoBlocks(vector<DataBlocks>* list);
-void ChangeState(short stateID);
-void SetupPCAP(const char* devname);
+// void SetupPCAP(const char* devname);
 template <typename T> ParentWin<T>* GetParentWin(BaseParentWin* baseParentWin);
 
 int max_y, max_x;
@@ -40,106 +30,29 @@ steady_clock::time_point start_time, end_time;
 //     List<T> list;
 // };
 
-class State {
-public:
-    State(vector<BaseParentWin*> windows) : windows(windows) {}
-    
-    vector<BaseParentWin*> windows;
-    short currentWin = 0;
 
-    virtual ~State() = default;
-
-    void DrawState(){
-        for(auto var : windows) {
-            var->DrawBorder();
-            var->DrawSubWindow();
-        }
-    }
-
-    void EraseState() {
-        for(auto parent : windows) {
-            parent->erase();
-            parent->EraseSubWindow();
-            parent->refresh();
-        }
-    }
-    
-    void SetWinLink(short win, short winTarget) {
-        windows[win]->AddLinkedWin(windows[winTarget]);
-    }
-
-    virtual void HandleKeyPress(short& currentState, int keyPressed) = 0;
-};
-
-class StateM : public State{
-public:
-    StateM(vector<BaseParentWin*> windows) : State(windows){}
-    void HandleKeyPress(short& currentState, int keyPressed) override {
-        switch (keyPressed) {
-        case 'W':
-        case 'w':
-        case KEY_UP:
-            autoScroll = false;
-            windows[currentWin]->moveSelection(-1);
-            windows[currentWin]->DrawSubWindow();
-            break;
-        case 'S':
-        case 's':
-        case KEY_DOWN:
-            autoScroll = false;
-            windows[currentWin]->moveSelection(1);
-            windows[currentWin]->DrawSubWindow();
-            break;
-        case 9:
-            currentWin++;            
-            break;
-        case 353:
-            currentWin--;
-            break;
-        }
-        if(currentWin >= windows.size())
-            currentWin = 0;
-        else if (currentWin < 0)
-            currentWin = windows.size() - 1;
-    }
-};
-
-class StateI : public State{
-public:
-    StateI(vector<BaseParentWin*> windows) : State(windows){}
-    void HandleKeyPress(short& currentState, int keyPressed) override {
-        switch (keyPressed) {
-        case 'W':
-        case 'w':
-        case KEY_UP:
-            this->windows[0]->moveSelection(-1);
-            this->windows[0]->DrawSubWindow();
-            break;
-        case 'S':
-        case 's':
-        case KEY_DOWN:
-            this->windows[0]->moveSelection(1);
-            this->windows[0]->DrawSubWindow();
-            break;
-        case 10:
-            vector<string>* tmp = dynamic_cast<ParentWin<string>*>(this->windows[currentWin])->GetList();
-            // devname = tmp->at(this->windows[currentWin]->GetCurrSelect()).c_str();
-            SetupPCAP(tmp->at(this->windows[currentWin]->GetCurrSelect()).c_str());
-            ChangeState(STATE_M);
-            // mvprintw(0,0, "StateM");
-            break;
-        }
-    }
-};
 
 // int state::CurrentID = 0;
 
-vector<State*> states;
-short currentState, prevState;
+// vector<State*> states;
+// short currentState, prevState;
+std::vector<State*> State::states;
+short State::currentState = 0;
+short State::prevState = 0;
 
 int main(int argc, char const *argv[]) {
     InitDisplay(max_y, max_x);
     refresh();
+
+    menuWin = new BasicWin(1, max_x, 0, 0);
+    mvwprintw(menuWin->win, 0, 0, "Hello world!");
+    menuWin->refresh();
+    mainWin = new BasicWin(max_y - 2, max_x, 1, 0);
+    conWin = new BasicWin(1, max_x, max_y - 1, 0);
+    mvwprintw(conWin->win, 0, 0, "Hello Console!");
+    conWin->refresh();
+
+    packetCapture = new PacketCapture();
 
     // mainList = new MainList(win1->subw, packets, main_packet_data);
 
@@ -149,16 +62,22 @@ int main(int argc, char const *argv[]) {
     // win2 = new ParentWin(max_y / 2, max_x / 2, max_y / 2, 0);
     // win3 = new ParentWin(max_y, max_x / 2, 0, max_x / 2);
     // win4 = new ParentWin(max_y / 2, max_x / 2, 0, 0);
+    short mHeight = mainWin->height;
+    short mWidth = mainWin->width;
+    short half_height = (mHeight / 2) - 2;
+    short half_width = mWidth / 2;
 
-    states.push_back(new StateM({
-        new ParentWin(max_y / 2, max_x / 2, 0, 0, main_packet_data),
-        new ParentWin(max_y / 2, max_x / 2, max_y / 2, 0, print_packet_info),
-        new ParentWin(max_y, max_x / 2, 0, max_x / 2, DrawRawData)
+
+    State::states.push_back(new StateM({
+        new ParentWin(half_height, half_width, 0, 0, main_packet_data),
+        new ParentWin(mHeight - half_height, half_width, half_height, 0, print_packet_info),
+        new ParentWin(mHeight, mWidth - half_width, 0, half_width, DrawRawData)
     }));
 
-    states.emplace_back(new StateI({new ParentWin(max_y / 2, max_x / 2, 0, 0, DrawString)}));
+    State::states.emplace_back(new StateI({new ParentWin(half_height, half_width, 0, 0, DrawString)}));
+    State::states.emplace_back(new StateF({new ParentWin<string>(half_height, half_width, 0, 0)}));
 
-    auto sIw0 = GetParentWin<string>(states[STATE_I]->windows[0]);
+    auto sIw0 = GetParentWin<string>(State::states[STATE_I]->windows[0]);
 
     sIw0->SetListGenerator(GetDevices);
     sIw0->UpdateList();
@@ -173,42 +92,41 @@ int main(int argc, char const *argv[]) {
     //     std::cerr << "Error: El objeto no es de tipo ParentWin<string>" << std::endl;
     // }
 
-    auto sMw0 = GetParentWin<PacketData>(states[STATE_M]->windows[0]);
+    auto sMw0 = GetParentWin<PacketData>(State::states[STATE_M]->windows[0]);
     
     packets = sMw0->GetList();
     packetIndex = sMw0->GetCurrIndex();
 
-    states[STATE_M]->SetWinLink(0,1);
-    auto sMw1 = GetParentWin<string>(states[STATE_M]->windows[1]);
+    State::states[STATE_M]->SetWinLink(0,1);
+    auto sMw1 = GetParentWin<string>(State::states[STATE_M]->windows[1]);
     sMw1->SetListGenerator(GetstructuredData);
 
-    states[STATE_M]->SetWinLink(0,2);
-    auto sMw2 = GetParentWin<DataBlocks>(states[STATE_M]->windows[2]);
+    State::states[STATE_M]->SetWinLink(0,2);
+    auto sMw2 = GetParentWin<DataBlocks>(State::states[STATE_M]->windows[2]);
     sMw2->SetListGenerator(splitIntoBlocks);
 
     // sMw1->UpdateList();
     
     // states[STATE_M].SetWinLink(0,2);
 
-    states[STATE_I]->DrawState();
+    State::states[STATE_I]->DrawState();
 
-    currentState = STATE_I;
+    State::currentState = STATE_I;
 
     MainLoop();
 
-    // Cerrar la captura
-    pcap_close(capdev);
-
+    packetCapture->close();
     EndDisplay();
 
     return 0;
 }
 
 void packetManager(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char *packetd_ptr) {
-    end_time = steady_clock::now();
-    duration<double> elapsed_seconds = duration_cast<duration<double>>(end_time - start_time);
+    // packetCapture->end_time = steady_clock::now();
+    // duration<double> elapsed_seconds = duration_cast<duration<double>>(end_time - start_time);
+    duration<double> elapsed_seconds = packetCapture->GetElapsedTime();
 
-    ParentWin<PacketData>* parentWin = dynamic_cast<ParentWin<PacketData>*>(states[STATE_M]->windows[0]);
+    ParentWin<PacketData>* parentWin = dynamic_cast<ParentWin<PacketData>*>(State::states[STATE_M]->windows[0]);
     vector<PacketData>* list;
     if (parentWin) {
         list = parentWin->GetList();
@@ -220,44 +138,46 @@ void packetManager(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char 
 
     // packets->push_back({elapsed_seconds, packetd_ptr, pkthdr->len});
 
-    int height = states[STATE_M]->windows[0]->GetSubHeight();
+    if(State::currentState != STATE_M) return;
+
+    int height = State::states[STATE_M]->windows[0]->GetSubHeight();
 
 
     if(autoScroll){
-        states[STATE_M]->windows[0]->moveSelection(1);
-        states[STATE_M]->windows[0]->DrawSubWindow();
+        State::states[STATE_M]->windows[0]->moveSelection(1);
+        State::states[STATE_M]->windows[0]->DrawSubWindow();
     }
     else if(!autoScroll && list->size() <= height) {
-        states[STATE_M]->windows[0]->DrawSubWindow();
+        State::states[STATE_M]->windows[0]->DrawSubWindow();
     }
 }
 
-void *threadpcap(void *arg) {
-    pcap_t *capdev = (pcap_t *)arg;
-    int packets_count = -1;
+// void *threadpcap(void *arg) {
+//     pcap_t *capdev = (pcap_t *)arg;
+//     int packets_count = -1;
 
-    int result = pcap_loop(capdev, packets_count, packetManager, nullptr);
-    if (result == -1) {
-        fprintf(stderr, "ERR: pcap_loop() failed: %s\n", pcap_geterr(capdev));
-        exit(1);
-    } 
-    // else if (result == -2) {
-    //     printf("pcap_loop() finalizado por pcap_breakloop().\n");
-    // }
+//     int result = pcap_loop(capdev, packets_count, packetManager, nullptr);
+//     if (result == -1) {
+//         fprintf(stderr, "ERR: pcap_loop() failed: %s\n", pcap_geterr(capdev));
+//         exit(1);
+//     } 
+//     // else if (result == -2) {
+//     //     printf("pcap_loop() finalizado por pcap_breakloop().\n");
+//     // }
 
-    return NULL;
-}
+//     return NULL;
+// }
 
 void MainLoop(){
     int keyPressed = 0;
     while ((keyPressed = getch()) != 'q') {
         // if(keyPressed > 0) mvprintw(0, 0, "%d", keyPressed);
-        states[currentState]->HandleKeyPress(currentState, keyPressed);
+        State::states[State::currentState]->HandleKeyPress(State::currentState, keyPressed);
     }
-    if (capdev) {
-        pcap_breakloop(capdev);  // Finalizar el pcap_loop
-        pthread_join(captureThread, NULL);
-    }
+    // if (capdev) {
+    //     pcap_breakloop(capdev);  // Finalizar el pcap_loop
+    //     pthread_join(captureThread, NULL);
+    // }
 }
 
 void GetDevices(vector<string>* devs){
@@ -386,17 +306,9 @@ void GetstructuredData(vector<string>* list) {
     }
 }
 
-void ChangeState(short stateID) {
-    prevState = currentState;
-    currentState = stateID;
-    states[prevState]->EraseState();
-    states[currentState]->DrawState();
-}
-
 void SetupPCAP(const char* devname) {
     char errbuf[PCAP_ERRBUF_SIZE];
     int packets_count = -1;
-    char filters[] = ""; // Ajustar filtro si es necesario
     struct bpf_program bpf;
     bpf_u_int32 net;  // Dirección de red
     bpf_u_int32 mask;  // Máscara de red
@@ -434,12 +346,12 @@ void SetupPCAP(const char* devname) {
     pcap_freecode(&bpf); // Liberar el filtro compilado
 
     // Crear el hilo de captura
-    int threadError = pthread_create(&captureThread, NULL, threadpcap, (void*)capdev);
-    if (threadError) {
-        fprintf(stderr, "Error al crear el hilo: %d\n", threadError);
-        pcap_close(capdev);
-        exit(1);
-    }
+    // int threadError = pthread_create(&captureThread, NULL, threadpcap, (void*)capdev);
+    // if (threadError) {
+    //     fprintf(stderr, "Error al crear el hilo: %d\n", threadError);
+    //     pcap_close(capdev);
+    //     exit(1);
+    // }
 
     start_time = steady_clock::now();
 }
