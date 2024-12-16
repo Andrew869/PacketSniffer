@@ -3,6 +3,10 @@
 #define STATE_F 2
 #define STATE_S 3
 
+#define KEY_F1 265
+#define KEY_TTAB 9
+#define KEY_BTAB 353 
+
 class State {
 public:
     State(vector<BaseParentWin*> windows) : windows(windows) {
@@ -22,6 +26,7 @@ public:
     virtual ~State() = default;
 
     void DrawState(){
+        UpdateMenu();
         for(auto var : windows) {
             var->DrawBorder();
             var->DrawSubWindow();
@@ -40,6 +45,7 @@ public:
         prevState = currentState;
         currentState = stateID;
         states[prevState]->EraseState();
+        // states[currentState]->UpdateMenu();
         states[currentState]->DrawState();
         states[currentState]->StateBehaviour();
     }
@@ -50,11 +56,20 @@ public:
 
     virtual void HandleKeyPress(short& currentState, int keyPressed) = 0;
     virtual void StateBehaviour() = 0;
+    virtual void UpdateMenu() = 0;
 };
 
 class StateM : public State{
 public:
-    StateM(vector<BaseParentWin*> windows) : State(windows){}
+    StateM(vector<BaseParentWin*> windows) : State(windows){
+        menuOptions.insert({"<F1> help", {KEY_F1}});
+        menuOptions.insert({"<Up> Select prev", {'W', 'w', KEY_UP}});
+        menuOptions.insert({"<Down> Select next", {'S', 's', KEY_DOWN}});
+        menuOptions.insert({"<TAB> focus next", {KEY_TTAB}});
+        menuOptions.insert({"<shift + TAB> focus prev", {KEY_BTAB}});
+        menuOptions.insert({"<P> start capturing", {'P', 'p'}});
+        menuOptions.insert({"<F> Filters", {'F', 'f'}});
+    }
     void HandleKeyPress(short& currentState, int keyPressed) override {
         switch (keyPressed) {
             case 'W':
@@ -85,12 +100,12 @@ public:
                 // current_selection = packets.size() - 1;
                 // move_selection(1);
                 break;
-            case 9:
+            case KEY_TTAB:
                 currentWin++;
                 if(currentWin >= windows.size()) currentWin = 0;
                 autoScroll = !currentWin;
                 break;
-            case 353:
+            case KEY_BTAB:
                 currentWin--;
                 if(currentWin < 0) currentWin = windows.size() - 1;
                 autoScroll = !currentWin;
@@ -114,6 +129,12 @@ public:
     }
     
     void StateBehaviour() override {}
+
+    void UpdateMenu() override {
+        // menuWin->PrintM("%s %s %s %s %s", );
+    }
+
+    map<string, vector<short>> menuOptions;
 };
 
 class StateI : public State{
@@ -146,6 +167,10 @@ public:
     }
 
     void StateBehaviour() override {}
+
+    void UpdateMenu() override {
+        menuWin->PrintM("menu I");
+    }
 };
 
 class StateF : public State{
@@ -168,5 +193,9 @@ public:
         nodelay(stdscr, true);
         curs_set(0);
         packetCapture->SetFilters(input);
+    }
+
+    void UpdateMenu() override {
+        menuWin->PrintM("menu F");
     }
 };

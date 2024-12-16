@@ -32,6 +32,7 @@
 #include <iomanip>              // Para std::setw
 #include <memory>
 #include <any>
+#include <map>
 #include <cstdarg>
 
 using namespace std;

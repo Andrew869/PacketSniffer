@@ -121,9 +121,8 @@ int main(int argc, char const *argv[]) {
     return 0;
 }
 
+// Cada que un paquete es capturado se llama a esta funcion, la cual guarda el contenido del packete en una lista
 void packetManager(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char *packetd_ptr) {
-    // packetCapture->end_time = steady_clock::now();
-    // duration<double> elapsed_seconds = duration_cast<duration<double>>(end_time - start_time);
     duration<double> elapsed_seconds = packetCapture->GetElapsedTime();
 
     ParentWin<PacketData>* parentWin = dynamic_cast<ParentWin<PacketData>*>(State::states[STATE_M]->windows[0]);
@@ -134,9 +133,6 @@ void packetManager(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char 
     } else {
         std::cerr << "Error: El objeto no es de tipo ParentWin<PacketData>" << std::endl;
     }
-    // vector<PacketData>* packets = dynamic_cast<ParentWin<PacketData>*>(states[currentState]->windows[0])->GetList();
-
-    // packets->push_back({elapsed_seconds, packetd_ptr, pkthdr->len});
 
     if(State::currentState != STATE_M) return;
 
@@ -152,22 +148,7 @@ void packetManager(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char 
     }
 }
 
-// void *threadpcap(void *arg) {
-//     pcap_t *capdev = (pcap_t *)arg;
-//     int packets_count = -1;
-
-//     int result = pcap_loop(capdev, packets_count, packetManager, nullptr);
-//     if (result == -1) {
-//         fprintf(stderr, "ERR: pcap_loop() failed: %s\n", pcap_geterr(capdev));
-//         exit(1);
-//     } 
-//     // else if (result == -2) {
-//     //     printf("pcap_loop() finalizado por pcap_breakloop().\n");
-//     // }
-
-//     return NULL;
-// }
-
+// Bucle principal, donde se maneja la entrada de teclas del usuario
 void MainLoop(){
     int keyPressed = 0;
     while ((keyPressed = getch()) != 'q') {
@@ -180,6 +161,7 @@ void MainLoop(){
     // }
 }
 
+// Optiene el nombre de las interfaces de red
 void GetDevices(vector<string>* devs){
     devs->clear();
     char errbuf[100];
@@ -197,6 +179,7 @@ void GetDevices(vector<string>* devs){
 	}
 }
 
+// Procesa un packete para poder mostrarlo en modo "RAW"
 void splitIntoBlocks(vector<DataBlocks>* list) {
     list->clear(); // Limpiar cualquier dato anterior
 
@@ -223,6 +206,8 @@ void splitIntoBlocks(vector<DataBlocks>* list) {
     }
 }
 
+
+//Procesa un paquete para mostrarlo estructuradamente
 void GetstructuredData(vector<string>* list) {
     list->clear();
     
@@ -304,56 +289,6 @@ void GetstructuredData(vector<string>* list) {
     } else {
         list->push_back( "Incomplete IP Header");
     }
-}
-
-void SetupPCAP(const char* devname) {
-    char errbuf[PCAP_ERRBUF_SIZE];
-    int packets_count = -1;
-    struct bpf_program bpf;
-    bpf_u_int32 net;  // Dirección de red
-    bpf_u_int32 mask;  // Máscara de red
-
-    // Abrir el dispositivo
-    capdev = pcap_open_live(devname, 65535, 1, 1000, errbuf);
-    if (capdev == NULL) {
-        printf("ERR: pcap_open_live() failed: %s\n", errbuf);
-        exit(1);
-    }
-
-    // Obtener tipo de enlace
-    int link_hdr_type = pcap_datalink(capdev);
-
-    // Configurar filtro BPF
-    if (pcap_lookupnet(devname, &net, &mask, errbuf) == -1) {
-        fprintf(stderr, "No se pudo obtener la dirección de red: %s\n", errbuf);
-        exit(1);
-    }
-
-    // bpf_u_int32 netmask = 0xFFFFFF; // Netmask predeterminado
-    if (pcap_compile(capdev, &bpf, filters, 0, net) == PCAP_ERROR) {
-        printf("ERR: pcap_compile() failed: %s\n", pcap_geterr(capdev));
-        pcap_close(capdev);
-        exit(1);
-    }
-
-    if (pcap_setfilter(capdev, &bpf)) {
-        printf("ERR: pcap_setfilter() failed: %s\n", pcap_geterr(capdev));
-        pcap_freecode(&bpf);
-        pcap_close(capdev);
-        exit(1);
-    }
-
-    pcap_freecode(&bpf); // Liberar el filtro compilado
-
-    // Crear el hilo de captura
-    // int threadError = pthread_create(&captureThread, NULL, threadpcap, (void*)capdev);
-    // if (threadError) {
-    //     fprintf(stderr, "Error al crear el hilo: %d\n", threadError);
-    //     pcap_close(capdev);
-    //     exit(1);
-    // }
-
-    start_time = steady_clock::now();
 }
 
 template <typename T>
