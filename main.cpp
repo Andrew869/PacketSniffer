@@ -74,8 +74,8 @@ int main(int argc, char const *argv[]) {
         new ParentWin(mHeight, mWidth - half_width, 0, half_width, DrawRawData)
     }));
 
-    State::states.emplace_back(new StateI({new ParentWin(half_height, half_width, 0, 0, DrawString)}));
-    State::states.emplace_back(new StateF({new ParentWin<string>(half_height, half_width, 0, 0)}));
+    State::states.emplace_back(new StateI({new ParentWin(half_height, 18, 0, 0, DrawString)}));
+    State::states.emplace_back(new StateF({new ParentWin<string>(3, mWidth, 0, 0)}));
 
     auto sIw0 = GetParentWin<string>(State::states[STATE_I]->windows[0]);
 

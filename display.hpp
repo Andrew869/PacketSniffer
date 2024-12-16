@@ -272,7 +272,7 @@ public:
                     return input;
 
                 default:  // Cualquier otra tecla (añadir texto)
-                    if (isprint(ch) && cursor_x < subw.width - 1) {
+                    if (isprint(ch) && cursor_x < subw.width) {
                         input.push_back(ch);
                         mvwaddch(win, cursor_y, cursor_x, ch);
                         cursor_x++;

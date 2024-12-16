@@ -255,7 +255,7 @@ void print_packet_info(WINDOW* win, vector<string>& list, int option_index, int 
 }
 
 void DrawString(WINDOW* win, vector<string>& list, int option_index, int y, int width){
-    mvwprintw(win, y, 0, "%-40s", list[option_index].c_str());
+    mvwprintw(win, y, 0, "%*s", -width ,list[option_index].c_str());
 }
 
 // void splitIntoBlocks(vector<DataBlocks>& blocks, vector<u_char>& data, bpf_u_int32 length) {

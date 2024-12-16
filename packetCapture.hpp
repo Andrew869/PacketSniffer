@@ -36,6 +36,7 @@ public:
 
     void SetFilters(string newFilters) {
         // strcpy(filters, NewFilters);
+        bool isCapturingPrev = isCapturing;
         filters = newFilters;
         StopCapture();
         pcap_lookupnet(currDevName.c_str(), &net, &mask, errbuf);
@@ -50,14 +51,14 @@ public:
             return;
         }
         pcap_freecode(&bpf);
-        StartCapture();
+        if(isCapturingPrev) StartCapture();
         conWin->PrintM("Puerto establecido: %s", filters.c_str());
     }
 
-    void StartCapture() {
+    void StartCapture(bool resetTimer = false) {
         if(!isCapturing){
             pthread_create(&captureThread, NULL, ThreadPCAP, (void*)handle);
-            start_time = steady_clock::now();
+            if(resetTimer) start_time = steady_clock::now();
             isCapturing = true;
             conWin->PrintM("Captura iniciada");
         }

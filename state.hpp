@@ -7,6 +7,12 @@
 #define KEY_TTAB 9
 #define KEY_BTAB 353 
 
+struct ShortCuts{
+    string key;
+    string desc;
+    // vector<short> keys;
+};
+
 class State {
 public:
     State(vector<BaseParentWin*> windows) : windows(windows) {
@@ -22,6 +28,9 @@ public:
 
     static vector<State*> states;
     static short currentState, prevState;
+    // map<string, ShortCuts> menuOptions;
+    vector<ShortCuts> menuOptions;
+    vector<string> menuOrder;
 
     virtual ~State() = default;
 
@@ -44,6 +53,7 @@ public:
     void ChangeState(short stateID) {
         prevState = currentState;
         currentState = stateID;
+        states[prevState]->EndState();
         states[prevState]->EraseState();
         // states[currentState]->UpdateMenu();
         states[currentState]->DrawState();
@@ -54,21 +64,55 @@ public:
         windows[win]->AddLinkedWin(windows[winTarget]);
     }
 
+    // void AddMenuOption(const string& key, const string& desc, const vector<short>& keys) {
+    //     menuOptions.insert({key, {desc, keys}});
+    //     menuOrder.push_back(key);
+    // }
+
+    void UpdateMenu() {
+        menuWin->erase();
+        wmove(menuWin->win, 0, 1);
+        for (const auto& shortcut : menuOptions) {
+            string tmp = ' ' + shortcut.key + ": " + shortcut.desc + ' ';
+            wattron(menuWin->win, A_REVERSE);
+            wprintw(menuWin->win, "%s", tmp.c_str());
+            wmove(menuWin->win, 0, getcurx(menuWin->win) + 2);
+        }
+        menuWin->refresh();
+    }
+
     virtual void HandleKeyPress(short& currentState, int keyPressed) = 0;
     virtual void StateBehaviour() = 0;
-    virtual void UpdateMenu() = 0;
+    virtual void EndState() = 0;
+    // virtual void UpdateMenu() = 0;
 };
 
 class StateM : public State{
 public:
     StateM(vector<BaseParentWin*> windows) : State(windows){
-        menuOptions.insert({"<F1> help", {KEY_F1}});
-        menuOptions.insert({"<Up> Select prev", {'W', 'w', KEY_UP}});
-        menuOptions.insert({"<Down> Select next", {'S', 's', KEY_DOWN}});
-        menuOptions.insert({"<TAB> focus next", {KEY_TTAB}});
-        menuOptions.insert({"<shift + TAB> focus prev", {KEY_BTAB}});
-        menuOptions.insert({"<P> start capturing", {'P', 'p'}});
-        menuOptions.insert({"<F> Filters", {'F', 'f'}});
+        // menuOptions.insert({"help", {"<F1> help", {KEY_F1}}});
+        // menuOptions.insert({"up", {"<Up> Select prev", {'W', 'w', KEY_UP}}});
+        // menuOptions.insert({"down", {"<Down> Select next", {'S', 's', KEY_DOWN}}});
+        // menuOptions.insert({"focus-prev", {"<shift + TAB> focus prev", {KEY_BTAB}}});
+        // menuOptions.insert({"focus-next", {"<TAB> focus next", {KEY_TTAB}}});
+        // menuOptions.insert({"start-stop", {"<P> start capturing", {'P', 'p'}}});
+        // menuOptions.insert({"filters", {"<F> Filters", {'F', 'f'}}});
+
+        // menuOptions.insert({"help", {"F1", "help"}});
+        // menuOptions.insert({"start-stop", {"P", "start capturing"}});
+        // menuOptions.insert({"filters", {"F", "Filters"}});
+        // menuOptions.insert({"up", {"Up", "Select prev"}});
+        // menuOptions.insert({"down", {"Down", "Select next"}});
+        // menuOptions.insert({"focus-prev", {"shift + tab", "focus prev"}});
+        // menuOptions.insert({"focus-next", {"Tab", "change focus"}});
+
+        menuOptions.push_back({"F1", "help"});
+        menuOptions.push_back({"P", "start capturing"});
+        menuOptions.push_back({"F", "Filters"});
+        menuOptions.push_back({"Up", "Select prev"});
+        menuOptions.push_back({"Down", "Select next"});
+        // menuOptions.push_back({"shift + tab", "focus prev"});
+        menuOptions.push_back({"Tab", "change focus"});
     }
     void HandleKeyPress(short& currentState, int keyPressed) override {
         switch (keyPressed) {
@@ -116,10 +160,16 @@ public:
                 break;
             case 'P':
             case 'p':
-                if(packetCapture->isCapturing)
+                if(packetCapture->isCapturing){
                     packetCapture->StopCapture();
-                else
-                    packetCapture->StartCapture();
+                    menuOptions[1].desc = "start capturing";
+                    UpdateMenu();
+                }
+                else {
+                    packetCapture->StartCapture(true);
+                    menuOptions[1].desc = "stop capturing";
+                    UpdateMenu();
+                }
                 break;
         }
         // if(currentWin >= windows.size())
@@ -129,17 +179,17 @@ public:
     }
     
     void StateBehaviour() override {}
-
-    void UpdateMenu() override {
-        // menuWin->PrintM("%s %s %s %s %s", );
-    }
-
-    map<string, vector<short>> menuOptions;
+    void EndState() {}
 };
 
 class StateI : public State{
 public:
-    StateI(vector<BaseParentWin*> windows) : State(windows){}
+    StateI(vector<BaseParentWin*> windows) : State(windows){
+        menuOptions.push_back({"F1", "help"});
+        menuOptions.push_back({"Up", "Select prev"});
+        menuOptions.push_back({"Down", "Select next"});
+        menuOptions.push_back({"Enter", "Continue"});
+    }
     void HandleKeyPress(short& currentState, int keyPressed) override {
         switch (keyPressed) {
         case 'W':
@@ -167,15 +217,15 @@ public:
     }
 
     void StateBehaviour() override {}
-
-    void UpdateMenu() override {
-        menuWin->PrintM("menu I");
-    }
+    void EndState() {}
 };
 
 class StateF : public State{
 public:
-    StateF(vector<BaseParentWin*> windows) : State(windows){}
+    StateF(vector<BaseParentWin*> windows) : State(windows){
+        menuOptions.push_back({"F1", "help"});
+        menuOptions.push_back({"Enter", "set Filter"});
+    }
     void HandleKeyPress(short& currentState, int keyPressed) override {
         switch (keyPressed) {
         case 10:
@@ -193,9 +243,11 @@ public:
         nodelay(stdscr, true);
         curs_set(0);
         packetCapture->SetFilters(input);
+        menuOptions[1].desc = "continue";
+        UpdateMenu();
     }
 
-    void UpdateMenu() override {
-        menuWin->PrintM("menu F");
+    void EndState() override {
+        menuOptions[1].desc = "set Filter";
     }
 };
