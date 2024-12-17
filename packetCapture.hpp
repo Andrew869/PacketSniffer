@@ -34,24 +34,25 @@ public:
     //     return pcap_lookupnet(currDevName.c_str(), &net, &mask, errbuf) == PCAP_ERROR;
     // }
 
-    void SetFilters(string newFilters) {
+    int SetFilters(string newFilters) {
         // strcpy(filters, NewFilters);
         bool isCapturingPrev = isCapturing;
         filters = newFilters;
         StopCapture();
         pcap_lookupnet(currDevName.c_str(), &net, &mask, errbuf);
         if (pcap_compile(handle, &bpf, filters.c_str(), 0, net) == PCAP_ERROR) {
-            conWin->PrintM("ERR: pcap_compile() failed: %s\n", pcap_geterr(handle));
+            conWin->PrintM("ERROR: Invalid Filter Expressions", pcap_geterr(handle));
             // conWin->PrintM("Puerto establecido: %s", filters.c_str());
-            return;
+            return 0;
         }
         if (pcap_setfilter(handle, &bpf)) {
             // conWin->PrintM("ERR: pcap_setfilter() failed: %s\n", pcap_geterr(handle));
             pcap_freecode(&bpf);
-            return;
+            return 0;
         }
         pcap_freecode(&bpf);
         if(isCapturingPrev) StartCapture();
+        return 1;
         // conWin->PrintM("Puerto establecido: %s", filters.c_str());
     }
 

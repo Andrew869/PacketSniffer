@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=PacketSniffer
+Comment=Network packet capture and analyzer
+Exec=sudo packetsniffer
+Icon=utilities-terminal
+Terminal=true
+Type=Application
+Categories=Network;Utility;

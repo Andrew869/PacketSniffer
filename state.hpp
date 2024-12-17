@@ -1,7 +1,7 @@
 #define STATE_M 0
 #define STATE_I 1
 #define STATE_F 2
-#define STATE_S 3
+#define STATE_H 3
 
 #define KEY_F1 265
 #define KEY_TTAB 9
@@ -14,6 +14,7 @@ void save_to_excel();
 struct ShortCuts{
     string key;
     string desc;
+    attr_t colorPair;
     // vector<short> keys;
 };
 
@@ -29,6 +30,7 @@ public:
     // Window* mainWin;
     vector<BaseParentWin*> windows;
     short currentWin = 0;
+    short prevWin;
 
     static vector<State*> states;
     static short currentState, prevState;
@@ -40,11 +42,18 @@ public:
 
     void DrawState(){
         UpdateMenu();
-        for(auto var : windows) {
-            var->DrawBorder();
+        for (size_t i = 0; i < windows.size(); i++){
+            auto var = windows[i];
+            var->DrawBorder(currentWin == i? COLOR_PAIR(COLORS::RED) : COLOR_PAIR(COLORS::NORMAL));
             var->SetTitle();
             var->DrawSubWindow();
         }
+        
+        // for(auto var : windows) {
+        //     var->DrawBorder(COLORS::NORMAL);
+        //     var->SetTitle();
+        //     var->DrawSubWindow();
+        // }
     }
 
     void EraseState() {
@@ -79,8 +88,9 @@ public:
         wmove(menuWin->win, 0, 1);
         for (const auto& shortcut : menuOptions) {
             string tmp = ' ' + shortcut.key + ": " + shortcut.desc + ' ';
-            wattron(menuWin->win, A_REVERSE);
+            wattron(menuWin->win, shortcut.colorPair);
             wprintw(menuWin->win, "%s", tmp.c_str());
+            wattroff(menuWin->win, shortcut.colorPair);
             wmove(menuWin->win, 0, getcurx(menuWin->win) + 1);
         }
         menuWin->refresh();
@@ -95,17 +105,20 @@ public:
 class StateM : public State{
 public:
     StateM(vector<BaseParentWin*> windows) : State(windows){
-        menuOptions.push_back({"F1", "Help"});
-        menuOptions.push_back({"P", "Start capturing"});
-        menuOptions.push_back({"F", "Filters"});
-        menuOptions.push_back({"ctrl + S", "Save log"});
-        menuOptions.push_back({"Up", "Select prev"});
-        menuOptions.push_back({"Down", "Select next"});
-        // menuOptions.push_back({"shift + tab", "focus prev"});
-        menuOptions.push_back({"Tab", "Change focus"});
+        menuOptions.push_back({"F1", "Help", COLOR_PAIR(COLORS::NORMAL_INV)});
+        menuOptions.push_back({"P", "Start capturing", COLOR_PAIR(COLORS::GREEN_INV)});
+        menuOptions.push_back({"F", "Filters", COLOR_PAIR(COLORS::NORMAL_INV)});
+        menuOptions.push_back({"ctrl+S", "Save log", COLOR_PAIR(COLORS::NORMAL_INV)});
+        menuOptions.push_back({"Up", "Select prev", COLOR_PAIR(COLORS::NORMAL_INV)});
+        menuOptions.push_back({"Down", "Select next", COLOR_PAIR(COLORS::NORMAL_INV)});
+        // menuOptions.push_back({"shift + tab", "focus prev", COLOR_PAIR(COLORS::NORMAL_INV)});
+        menuOptions.push_back({"Tab", "Change focus", COLOR_PAIR(COLORS::NORMAL_INV)});
     }
     void HandleKeyPress(short& currentState, int keyPressed) override {
         switch (keyPressed) {
+            case KEY_F1:
+                ChangeState(STATE_H);
+                break;
             case 'W':
             case 'w':
             case KEY_UP:
@@ -135,14 +148,22 @@ public:
                 // move_selection(1);
                 break;
             case KEY_TTAB:
-                currentWin++;
+                prevWin = currentWin++;
                 if(currentWin >= windows.size()) currentWin = 0;
                 autoScroll = !currentWin;
+                windows[prevWin]->DrawBorder(COLOR_PAIR(COLORS::NORMAL));
+                windows[prevWin]->SetTitle();
+                windows[currentWin]->DrawBorder(COLOR_PAIR(COLORS::RED));
+                windows[currentWin]->SetTitle();
                 break;
             case KEY_BTAB:
-                currentWin--;
+                prevWin = currentWin--;
                 if(currentWin < 0) currentWin = windows.size() - 1;
                 autoScroll = !currentWin;
+                windows[prevWin]->DrawBorder(COLOR_PAIR(COLORS::NORMAL));
+                windows[prevWin]->SetTitle();
+                windows[currentWin]->DrawBorder(COLOR_PAIR(COLORS::RED));
+                windows[currentWin]->SetTitle();
                 break;
             case 'F':
             case 'f':
@@ -153,18 +174,27 @@ public:
                 if(packetCapture->isCapturing){
                     packetCapture->StopCapture();
                     menuOptions[1].desc = "start capturing";
+                    menuOptions[1].colorPair = COLOR_PAIR(COLORS::GREEN_INV);
                     UpdateMenu();
                 }
                 else {
                     packetCapture->StartCapture(true);
                     menuOptions[1].desc = "stop capturing";
+                    menuOptions[1].colorPair = COLOR_PAIR(COLORS::RED_INV);
                     UpdateMenu();
+                    windows[0]->EraseSubWindow();
+                    packets->clear();
+                    windows[0]->SelectFirst();
                 }
                 break;
             case KEY_CTRL_S:
                 save_to_csv();
                 save_to_excel();
                 conWin->PrintM("Logs saved successfully");
+                break;
+            case KEY_BACKSPACE:
+                EraseState();
+                DrawState();
                 break;
         }
         // if(currentWin >= windows.size())
@@ -180,34 +210,37 @@ public:
 class StateI : public State{
 public:
     StateI(vector<BaseParentWin*> windows) : State(windows){
-        menuOptions.push_back({"F1", "help"});
-        menuOptions.push_back({"Up", "Select prev"});
-        menuOptions.push_back({"Down", "Select next"});
-        menuOptions.push_back({"Enter", "Continue"});
+        menuOptions.push_back({"F1", "help", COLOR_PAIR(COLORS::NORMAL_INV)});
+        menuOptions.push_back({"Up", "Select prev", COLOR_PAIR(COLORS::NORMAL_INV)});
+        menuOptions.push_back({"Down", "Select next ",COLOR_PAIR(COLORS::NORMAL_INV)});
+        menuOptions.push_back({"Enter", "Continue", COLOR_PAIR(COLORS::NORMAL_INV)});
     }
     void HandleKeyPress(short& currentState, int keyPressed) override {
         switch (keyPressed) {
-        case 'W':
-        case 'w':
-        case KEY_UP:
-            this->windows[0]->moveSelection(-1);
-            this->windows[0]->DrawSubWindow();
-            break;
-        case 'S':
-        case 's':
-        case KEY_DOWN:
-            this->windows[0]->moveSelection(1);
-            this->windows[0]->DrawSubWindow();
-            break;
-        case 10:
-            vector<string>* tmp = dynamic_cast<ParentWin<string>*>(this->windows[currentWin])->GetList();
-            // devname = tmp->at(this->windows[currentWin]->GetCurrSelect()).c_str();
-            packetCapture->currDevName = tmp->at(this->windows[currentWin]->GetCurrSelect());
-            packetCapture->open();
-            // SetupPCAP(tmp->at(this->windows[currentWin]->GetCurrSelect()).c_str());
-            ChangeState(STATE_M);
-            // mvprintw(0,0, "StateM");
-            break;
+            case KEY_F1:
+                ChangeState(STATE_H);
+                break;
+            case 'W':
+            case 'w':
+            case KEY_UP:
+                this->windows[0]->moveSelection(-1);
+                this->windows[0]->DrawSubWindow();
+                break;
+            case 'S':
+            case 's':
+            case KEY_DOWN:
+                this->windows[0]->moveSelection(1);
+                this->windows[0]->DrawSubWindow();
+                break;
+            case 10:
+                vector<string>* tmp = dynamic_cast<ParentWin<string>*>(this->windows[currentWin])->GetList();
+                // devname = tmp->at(this->windows[currentWin]->GetCurrSelect()).c_str();
+                packetCapture->currDevName = tmp->at(this->windows[currentWin]->GetCurrSelect());
+                packetCapture->open();
+                // SetupPCAP(tmp->at(this->windows[currentWin]->GetCurrSelect()).c_str());
+                ChangeState(STATE_M);
+                // mvprintw(0,0, "StateM");
+                break;
         }
     }
 
@@ -218,14 +251,17 @@ public:
 class StateF : public State{
 public:
     StateF(vector<BaseParentWin*> windows) : State(windows){
-        menuOptions.push_back({"F1", "help"});
-        menuOptions.push_back({"Enter", "set Filter"});
+        menuOptions.push_back({"F1", "help", COLOR_PAIR(COLORS::NORMAL_INV)});
+        menuOptions.push_back({"Enter", "set Filter", COLOR_PAIR(COLORS::NORMAL_INV)});
     }
     void HandleKeyPress(short& currentState, int keyPressed) override {
         switch (keyPressed) {
-        case 10:
-            ChangeState(STATE_M);
-            break;
+            case KEY_F1:
+                ChangeState(STATE_H);
+                break;
+            case 10:
+                ChangeState(STATE_M);
+                break;
         }
     }
 
@@ -237,13 +273,43 @@ public:
         noecho();
         nodelay(stdscr, true);
         curs_set(0);
-        packetCapture->SetFilters(input);
+        // int FilterStatus =  packetCapture->SetFilters(input);
+        if(packetCapture->SetFilters(input)) conWin->PrintM("filter set successfully: %s", input.c_str());
         menuOptions[1].desc = "continue";
         UpdateMenu();
-        conWin->PrintM("filter set successfully: %s", input.c_str());
     }
 
     void EndState() override {
         menuOptions[1].desc = "set Filter";
     }
+};
+
+class StateH : public State{
+public:
+    StateH(vector<BaseParentWin*> windows) : State(windows){
+        menuOptions.push_back({"Enter", "Return", COLOR_PAIR(COLORS::NORMAL_INV)});
+    }
+    void HandleKeyPress(short& currentState, int keyPressed) override {
+        switch (keyPressed) {
+            case 'W':
+            case 'w':
+            case KEY_UP:
+                this->windows[0]->moveSelection(-1);
+                this->windows[0]->DrawSubWindow();
+                break;
+            case 'S':
+            case 's':
+            case KEY_DOWN:
+                this->windows[0]->moveSelection(1);
+                this->windows[0]->DrawSubWindow();
+                break;
+            case 10:
+                ChangeState(prevState);
+                break;
+        }
+    }
+
+    void StateBehaviour() override {}
+
+    void EndState() override {}
 };

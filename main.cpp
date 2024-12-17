@@ -12,6 +12,7 @@ void packetManager(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char 
 // void *threadpcap(void *arg);
 void MainLoop();
 void GetDevices(vector<string>* devs);
+void GetHelp(vector<string>* list);
 void GetstructuredData(vector<string>* list, const PacketData &packetData);
 void GetstructuredData(vector<string>* list);
 void splitIntoBlocks(vector<DataBlocks>* list, const PacketData &packetData);
@@ -99,7 +100,7 @@ int main(int argc, char const *argv[]) {
         )
     }));
 
-    State::states.emplace_back(new StateI({
+    State::states.push_back(new StateI({
         new ParentWin(
             half_height, 30, 0, 0,
             new vector<Title>({
@@ -109,17 +110,26 @@ int main(int argc, char const *argv[]) {
         )
     }));
 
-    State::states.emplace_back(
-        new StateF({new ParentWin<string>(
+    State::states.push_back(new StateF({
+        new ParentWin<string>(
             3, mWidth, 0, 0,
             new vector<Title>({
                 Title{2, "[Type new filter rules]"}
             })
         )
     }));
+    
+    State::states.push_back(new StateH({
+        new ParentWin<string>(
+            mHeight, mWidth, 0, 0,
+            new vector<Title>({
+                Title{2, "[Help]"}
+            }),
+            DrawString
+        )
+    }));
 
     auto sIw0 = GetParentWin<string>(State::states[STATE_I]->windows[0]);
-
     sIw0->SetListGenerator(GetDevices);
     sIw0->UpdateList();
 
@@ -134,7 +144,7 @@ int main(int argc, char const *argv[]) {
     // }
 
     auto sMw0 = GetParentWin<PacketData>(State::states[STATE_M]->windows[0]);
-    
+
     packets = sMw0->GetList();
     packetIndex = sMw0->GetCurrIndex();
 
@@ -146,7 +156,9 @@ int main(int argc, char const *argv[]) {
     auto sMw2 = GetParentWin<DataBlocks>(State::states[STATE_M]->windows[2]);
     sMw2->SetListGenerator(splitIntoBlocks);
 
-    // sMw1->UpdateList();
+    auto sHw0 = GetParentWin<string>(State::states[STATE_H]->windows[0]);
+    sHw0->SetListGenerator(GetHelp);
+    sHw0->UpdateList();
     
     // states[STATE_M].SetWinLink(0,2);
 
@@ -409,6 +421,44 @@ void save_to_csv() {
     }
 
     file.close();
+}
+
+void GetHelp(vector<string>* list){
+    list->clear();
+
+    list->push_back("Network Interface Selection");
+    list->push_back("    In this section, you must select the network interface you want to work with.");
+    list->push_back("");
+    list->push_back("Packet Capture");
+    list->push_back("    Once the network interface is selected, the main screen will appear, containing 3 sections.");
+    list->push_back("    Section 1 - List of captured packets");
+    list->push_back("        In this section, you can see a list that grows as packets are captured.");
+    list->push_back("    Section 2 - Structured data");
+    list->push_back("        In this part, you can see the packet information in a structured format.");
+    list->push_back("    Section 3 - Raw data");
+    list->push_back("        This section shows the packet data in \"raw\" format.");
+    list->push_back("    Each of these sections can be accessed by pressing the <tab> key.");
+    list->push_back("");
+    list->push_back("Log Saving");
+    list->push_back("    The captured packet information can be exported by pressing the key combination");
+    list->push_back("    <ctrl + s>, which will generate two files: one in CSV format and another in XLSX format.");
+    list->push_back("");
+    list->push_back("Common Filter Expressions");
+    list->push_back("    Capture by protocol:");
+    list->push_back("        \"ip\": Captures only IP packets.");
+    list->push_back("        \"icmp\": Captures only ICMP packets (ping).");
+    list->push_back("        \"tcp\": Captures only TCP packets.");
+    list->push_back("        \"udp\": Captures only UDP packets.");
+    list->push_back("    Capture by IP address:");
+    list->push_back("        \"host 192.168.1.1\": Captures packets with the source or destination IP of 192.168.1.1.");
+    list->push_back("        \"net 192.168.1.0/24\": Captures packets from the 192.168.1.0/24 network.");
+    list->push_back("    Capture by port:");
+    list->push_back("        \"port 80\": Captures packets with port 80 (HTTP).");
+    list->push_back("        \"src port 80\": Captures packets with source port 80.");
+    list->push_back("        \"dst port 80\": Captures packets with destination port 80.");
+    list->push_back("    Capture combinations:");
+    list->push_back("        \"tcp and port 80\": Captures only TCP packets on port 80.");
+    list->push_back("        \"udp and src host 192.168.1.1\": Captures only UDP packets with source IP 192.168.1.1.");
 }
 
 void save_to_excel() {

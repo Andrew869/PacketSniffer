@@ -9,6 +9,16 @@
 //     void (*ListGenerator)(vector<T>*) = nullptr;
 // };
 
+enum COLORS {
+    NORMAL = 1,
+    NORMAL_INV,
+    RED,
+    RED_INV,
+    GREEN,
+    GREEN_INV
+};
+
+
 struct Title {
     int x;
     string text;
@@ -114,7 +124,7 @@ public:
     }
 
     // virtual void CreateWin(WINDOW* win) = 0;
-    virtual void DrawBorder() = 0;
+    virtual void DrawBorder(attr_t colorPair) = 0;
     virtual void DrawSubWindow() = 0;
     virtual void EraseSubWindow() = 0;
     virtual int GetSubHeight() = 0;
@@ -158,8 +168,10 @@ public:
         delete list;
     }
 
-    void DrawBorder() override{
+    void DrawBorder(attr_t colorPair) override{
+        wattron(this->win, colorPair);
         box(win, 0, 0);
+        wattroff(this->win, colorPair);
         refresh();
     }
 
@@ -194,9 +206,8 @@ public:
     }
 
     void moveSelection(int direction) override {
-        if (subw.objList) {
-            subw.objList->move_selection(direction);
-        }
+        if (!subw.objList || list->size() <= 1) return;
+        subw.objList->move_selection(direction);
 
         for(auto linked : linkedWins) {
             linked->UpdateList();
@@ -324,7 +335,12 @@ void InitDisplay(int &height, int &width){
     timeout(100);         // Esperar 100ms en cada iteración
     getmaxyx(stdscr, height, width);
 
-    // init_pair(1, COLOR_BLACK, COLOR_WHITE);
+    init_pair(COLORS::NORMAL, COLOR_WHITE, COLOR_BLACK);
+    init_pair(COLORS::NORMAL_INV, COLOR_BLACK, COLOR_WHITE);
+    init_pair(COLORS::RED, COLOR_RED, COLOR_BLACK);
+    init_pair(COLORS::RED_INV, COLOR_BLACK, COLOR_RED);
+    init_pair(COLORS::GREEN, COLOR_GREEN, COLOR_BLACK);
+    init_pair(COLORS::GREEN_INV, COLOR_BLACK, COLOR_GREEN);
 }
 
 void EndDisplay() {

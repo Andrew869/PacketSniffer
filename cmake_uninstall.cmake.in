@@ -1,0 +1,20 @@
+if(NOT CMAKE_INSTALL_PREFIX)
+    set(CMAKE_INSTALL_PREFIX "/usr/local")
+endif()
+
+configure_file(
+    "@CMAKE_CURRENT_BINARY_DIR@/install_manifest.txt"
+    "@CMAKE_CURRENT_BINARY_DIR@/install_manifest.txt"
+    @ONLY)
+
+file(READ "@CMAKE_CURRENT_BINARY_DIR@/install_manifest.txt" files)
+string(REPLACE "\n" ";" files "${files}")
+
+foreach(file ${files})
+    if(EXISTS "${file}")
+        message(STATUS "Removing ${file}")
+        execute_process(COMMAND ${CMAKE_COMMAND} -E remove "${file}")
+    else()
+        message(STATUS "File not found: ${file}")
+    endif()
+endforeach()
