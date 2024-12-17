@@ -11,6 +11,14 @@
 #include <vector>               // Contenedor de datos dinámico
 #include <pthread.h>            // Hilos de ejecución en C
 
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <net/ethernet.h>
+#include <netinet/ip_icmp.h>
+#include <netinet/udp.h>
+#include <netinet/tcp.h>
+#include <netinet/ip.h>
+
 #include <ncurses.h>            // Librería de interfaz de usuario en terminal
 #include <sys/ioctl.h>          // Entradas/salidas del sistema
 #include <signal.h>             // Manipulación de señales
@@ -23,6 +31,7 @@
 #include <sstream>              // Para std::stringstream
 #include <iomanip>              // Para std::setw
 #include <memory>
+<<<<<<< HEAD
 
 #include <linux/if_ether.h> // Asegúrate de incluir este encabezado
 #include <netinet/ip.h>     // Para la estructura iphdr
@@ -34,5 +43,13 @@
 #include <xlsxwriter.h>
 
 
+=======
+#include <any>
+#include <map>
+#include <cstdarg>
+#include<fstream>
+#include <xlsxwriter.h>
+
+>>>>>>> origin/testing
 using namespace std;
 using namespace chrono;

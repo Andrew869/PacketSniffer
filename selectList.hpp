@@ -1,8 +1,14 @@
+<<<<<<< HEAD
 // void CreateSecLists(vector<u_char>& data, bpf_u_int32 length);
 
 struct DataBlocks {
     string hexData; // Lista de cadenas en formato hexadecimal
     string rawData; // Lista de cadenas en formato "raw"
+=======
+struct DataBlocks {
+    string hexData; // Lista de cadenas en formato hexadecimal
+    string asciiData; // Lista de cadenas en formato "raw"
+>>>>>>> origin/testing
 };
 
 class PacketData {
@@ -18,6 +24,7 @@ public:
 private:
 };
 
+<<<<<<< HEAD
 void draw_rawData(SubWindow& subw, vector<DataBlocks>& list, int option_index, int y);
 void print_packet_info(SubWindow& subw, vector<string>& list, int option_index, int y) ;
 
@@ -55,6 +62,36 @@ public:
     }
 
     void move_selection(int direction) {
+=======
+vector<PacketData>* packets;
+int* packetIndex;
+
+// void draw_asciiData(SubWindow& subw, vector<DataBlocks>& list, int option_index, int y);
+
+class BaseList {
+public:
+    virtual ~BaseList() = default;
+    virtual void move_selection(int direction) = 0;
+};
+
+template<typename T>
+class List : public BaseList{
+public:
+    // Constructor que inicializa el vector
+    List(vector<T>& list, short listHeight)
+    : list(list), listHeight(listHeight), current_selection(0), scroll_start(0) {}
+    
+    int current_selection;
+    int scroll_start;
+    vector<T>& list;
+    short listHeight;
+
+    int* GetCurrIndex() {
+        return &current_selection;
+    }
+
+    void move_selection(int direction) override {
+>>>>>>> origin/testing
         int new_selection = current_selection + direction;
 
         if (new_selection >= 0 && new_selection < static_cast<int>(list.size())) {
@@ -63,16 +100,23 @@ public:
 
         if (current_selection < scroll_start) {
             scroll_start = current_selection;
+<<<<<<< HEAD
         } else if (current_selection >= scroll_start + subw.height) {
             scroll_start = current_selection - subw.height + 1;
         }
         draw_list();
+=======
+        } else if (current_selection >= scroll_start + listHeight) {
+            scroll_start = current_selection - listHeight + 1;
+        }
+>>>>>>> origin/testing
     }
 };
 
 template<typename T>
 class DerList : public List<T> {
 public:
+<<<<<<< HEAD
     DerList(SubWindow& subw, vector<T>& list, void (*ListManager)(SubWindow&, vector<T>&, int, int))
     : List<T>(subw, list, ListManager) {
     }
@@ -84,20 +128,39 @@ public:
         mvwprintw(win2->win, 1, 0, "%d", this->scroll_start);
         mvwprintw(win2->win, 2, 0, "%d", this->list.size());
         win2->refresh();
+=======
+    DerList(vector<T>& list, short listHeight)
+    : List<T>(list, listHeight) {
+    }
+
+    void move_selection(int dir) override {
+        this->List<T>::move_selection(dir);
+        // win2->erase();
+        // mvwprintw(win2->win, 0, 0, "%d", this->current_selection);
+        // mvwprintw(win2->win, 1, 0, "%d", this->scroll_start);
+        // mvwprintw(win2->win, 2, 0, "%d", this->list.size());
+        // win2->refresh();
+>>>>>>> origin/testing
     }
 
 };
 
 class MainList : public List<PacketData> {
 public:
+<<<<<<< HEAD
     MainList(SubWindow& subw, vector<PacketData>& list, void (*ListManager)(SubWindow&, vector<PacketData>&, int, int))
         : List<PacketData>(subw, list, ListManager){}
 
     // void (*MoveManager)(vector<u_char>&, bpf_u_int32);
+=======
+    MainList(vector<PacketData>& list, short listHeight)
+        : List<PacketData>(list, listHeight){}
+>>>>>>> origin/testing
 
     DerList<DataBlocks>* rawList;
     vector<DataBlocks> generatedBlocks;
 
+<<<<<<< HEAD
     DerList<string>* infoList;
     vector<string> output;
 
@@ -127,6 +190,12 @@ public:
         this->List<PacketData>::move_selection(direction);
         // PacketData* packet = reinterpret_cast<PacketData*>(&this->list[this->current_selection]);
         CreateSecLists();
+=======
+    void move_selection(int direction) {
+        this->List<PacketData>::move_selection(direction);
+        PacketData* packet = reinterpret_cast<PacketData*>(&this->list[this->current_selection]);
+        // CreateSecLists();
+>>>>>>> origin/testing
     }
 
     vector<DataBlocks>& splitIntoBlocks() {
@@ -137,7 +206,11 @@ public:
 
         for (size_t i = 0; i < len; i += 16) {
             DataBlocks block;
+<<<<<<< HEAD
             ostringstream hexStream, rawStream;
+=======
+            std::stringstream hexStream, rawStream;
+>>>>>>> origin/testing
 
             for (size_t j = i; j < i + 16 && j < len; ++j) {
                 hexStream << std::hex << std::setw(2) << std::setfill('0') 
@@ -150,13 +223,18 @@ public:
             }
 
             block.hexData = hexStream.str();
+<<<<<<< HEAD
             block.rawData = rawStream.str();
+=======
+            block.asciiData = rawStream.str();
+>>>>>>> origin/testing
             generatedBlocks.push_back(block);
         }
 
         return generatedBlocks; // Devolver referencia al vector almacenado
     }
 
+<<<<<<< HEAD
     vector<string>& getInfo(){
         output.clear();
         PacketData& packet = list[this->current_selection];
@@ -267,6 +345,63 @@ vector<PacketData> packets;
 int autoScroll = true;
 
 void main_packet_data(SubWindow& subw, vector<PacketData>& list, int option_index, int y) {
+=======
+    // void CreateSecLists() {
+    //     rawList = new DerList<DataBlocks>(win3->subw, splitIntoBlocks(), draw_asciiData);
+    //     rawList->subw.erase();
+    //     rawList->draw_list();
+    // }
+};
+
+// vector<PacketData> packets;
+// vector<PacketData> packets;
+int autoScroll = true;
+
+string GetProtocolText(int protocol) {
+    // Crear un mapa que asocia cada protocolo con su texto
+    static const std::map<int, std::string> protocolMap = {
+        {IPPROTO_TCP, "TCP"},
+        {IPPROTO_UDP, "UDP"},
+        {IPPROTO_ICMP, "ICMP"},
+        {IPPROTO_IP, "IP"},
+        {IPPROTO_IGMP, "IGMP"},
+        {IPPROTO_IPIP, "IPIP"},
+        {IPPROTO_EGP, "EGP"},
+        {IPPROTO_PUP, "PUP"},
+        {IPPROTO_IDP, "IDP"},
+        {IPPROTO_TP, "TP"},
+        {IPPROTO_DCCP, "DCCP"},
+        {IPPROTO_IPV6, "IPV6"},
+        {IPPROTO_RSVP, "RSVP"},
+        {IPPROTO_GRE, "GRE"},
+        {IPPROTO_ESP, "ESP"},
+        {IPPROTO_AH, "AH"},
+        {IPPROTO_MTP, "MTP"},
+        {IPPROTO_BEETPH, "BEETPH"},
+        {IPPROTO_ENCAP, "ENCAP"},
+        {IPPROTO_PIM, "PIM"},
+        {IPPROTO_COMP, "COMP"},
+        {IPPROTO_L2TP, "L2TP"},
+        {IPPROTO_SCTP, "SCTP"},
+        {IPPROTO_UDPLITE, "UDPLITE"},
+        {IPPROTO_MPLS, "MPLS"},
+        {IPPROTO_ETHERNET, "ETHERNET"},
+        {IPPROTO_RAW, "RAW"},
+        {IPPROTO_MPTCP, "MPTCP"}
+    };
+
+    // Intentar encontrar el protocolo en el mapa
+    auto it = protocolMap.find(protocol);
+    if (it != protocolMap.end()) {
+        return it->second;  // Si lo encuentra, devuelve el texto correspondiente
+    }
+
+    // Si no lo encuentra, devolver el número de protocolo como cadena
+    return std::to_string(protocol);
+}
+
+void main_packet_data(WINDOW* win, vector<PacketData>& list, int option_index, int y, int width) {
+>>>>>>> origin/testing
     const struct ip* ip_header;   // Estructura para el encabezado IP
     int ip_header_length;         // Longitud del encabezado IP
 
@@ -284,6 +419,7 @@ void main_packet_data(SubWindow& subw, vector<PacketData>& list, int option_inde
     inet_ntop(AF_INET, &(ip_header->ip_dst), dest_ip, INET_ADDRSTRLEN);   // IP de destino
 
     // Obtener protocolo
+<<<<<<< HEAD
     int protocol = ip_header->ip_p; // Campo ip_p contiene el número de protocolo (TCP, UDP, etc.)
     string protText;
     switch(protocol) {
@@ -369,10 +505,14 @@ void main_packet_data(SubWindow& subw, vector<PacketData>& list, int option_inde
     }
 
     
+=======
+    int protocol = ip_header->ip_p; // Campo ip_p contiene el número de protocolo (TCP, UDP, etc.)    
+>>>>>>> origin/testing
 
     // Obtener tamaño del paquete
     int packet_size = ntohs(ip_header->ip_len);
 
+<<<<<<< HEAD
     mvwprintw(subw.win, y, 0, "%5d %11f  %-15s %-15s  %4s  %5d", option_index + 1, list[option_index].elapsed_seconds.count(), source_ip, dest_ip, protText.c_str(), list[option_index].length);
 }
 
@@ -703,5 +843,36 @@ void save_to_excel(const string& filename, MainList& mainList) {
 //         // blocks.rawData.push_back(rawStream.str());
 //     }
 // }
+=======
+    mvwprintw(win, y, 0, "%5d %11f  %-15s %-15s  %4s  %5d", option_index + 1, list[option_index].elapsed_seconds.count(), source_ip, dest_ip, GetProtocolText(protocol).c_str(), list[option_index].length);
+}
+
+void DrawRawData(WINDOW* win, vector<DataBlocks>& list, int option_index, int y, int width){
+    mvwprintw(win, y, 0, "%-48s  %-16s", list[option_index].hexData.c_str(), list[option_index].asciiData.c_str());
+}
+
+void print_packet_info(WINDOW* win, vector<string>& list, int option_index, int y, int width) {
+    mvwprintw(win, y, 0, "%*s", -width, list[option_index].c_str());
+}
+
+void DrawString(WINDOW* win, vector<string>& list, int option_index, int y, int width){
+    mvwprintw(win, y, 0, "%*s", -width ,list[option_index].c_str());
+}
+
+string getCurrentTimeString() {
+    // Obtener la fecha y hora actual
+    auto now = std::chrono::system_clock::now();
+    std::time_t now_time = std::chrono::system_clock::to_time_t(now);
+
+    // Convertir a formato legible
+    std::tm tm_time = *std::localtime(&now_time);
+
+    // Crear un stringstream para formatear la fecha y hora
+    std::stringstream ss;
+    ss << std::put_time(&tm_time, "%Y-%m-%d_%H-%M-%S");
+
+    return ss.str();
+}
+>>>>>>> origin/testing
 
 MainList* mainList;
