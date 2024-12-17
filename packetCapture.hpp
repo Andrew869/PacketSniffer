@@ -52,7 +52,7 @@ public:
         }
         pcap_freecode(&bpf);
         if(isCapturingPrev) StartCapture();
-        conWin->PrintM("Puerto establecido: %s", filters.c_str());
+        // conWin->PrintM("Puerto establecido: %s", filters.c_str());
     }
 
     void StartCapture(bool resetTimer = false) {
@@ -60,7 +60,7 @@ public:
             pthread_create(&captureThread, NULL, ThreadPCAP, (void*)handle);
             if(resetTimer) start_time = steady_clock::now();
             isCapturing = true;
-            conWin->PrintM("Captura iniciada");
+            conWin->PrintM("Packet capture started");
         }
     }
 
@@ -69,7 +69,7 @@ public:
             pcap_breakloop(handle);  // Finalizar el pcap_loop
             pthread_join(captureThread, NULL);
             isCapturing = false;
-            conWin->PrintM("Captura detenida");
+            conWin->PrintM("Packet capture stopped");
         }
     }
 

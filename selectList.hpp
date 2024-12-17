@@ -1,6 +1,6 @@
 struct DataBlocks {
     string hexData; // Lista de cadenas en formato hexadecimal
-    string rawData; // Lista de cadenas en formato "raw"
+    string asciiData; // Lista de cadenas en formato "raw"
 };
 
 class PacketData {
@@ -19,7 +19,7 @@ private:
 vector<PacketData>* packets;
 int* packetIndex;
 
-// void draw_rawData(SubWindow& subw, vector<DataBlocks>& list, int option_index, int y);
+// void draw_asciiData(SubWindow& subw, vector<DataBlocks>& list, int option_index, int y);
 
 class BaseList {
 public:
@@ -111,7 +111,7 @@ public:
             }
 
             block.hexData = hexStream.str();
-            block.rawData = rawStream.str();
+            block.asciiData = rawStream.str();
             generatedBlocks.push_back(block);
         }
 
@@ -119,7 +119,7 @@ public:
     }
 
     // void CreateSecLists() {
-    //     rawList = new DerList<DataBlocks>(win3->subw, splitIntoBlocks(), draw_rawData);
+    //     rawList = new DerList<DataBlocks>(win3->subw, splitIntoBlocks(), draw_asciiData);
     //     rawList->subw.erase();
     //     rawList->draw_list();
     // }
@@ -128,6 +128,49 @@ public:
 // vector<PacketData> packets;
 // vector<PacketData> packets;
 int autoScroll = true;
+
+string GetProtocolText(int protocol) {
+    // Crear un mapa que asocia cada protocolo con su texto
+    static const std::map<int, std::string> protocolMap = {
+        {IPPROTO_TCP, "TCP"},
+        {IPPROTO_UDP, "UDP"},
+        {IPPROTO_ICMP, "ICMP"},
+        {IPPROTO_IP, "IP"},
+        {IPPROTO_IGMP, "IGMP"},
+        {IPPROTO_IPIP, "IPIP"},
+        {IPPROTO_EGP, "EGP"},
+        {IPPROTO_PUP, "PUP"},
+        {IPPROTO_IDP, "IDP"},
+        {IPPROTO_TP, "TP"},
+        {IPPROTO_DCCP, "DCCP"},
+        {IPPROTO_IPV6, "IPV6"},
+        {IPPROTO_RSVP, "RSVP"},
+        {IPPROTO_GRE, "GRE"},
+        {IPPROTO_ESP, "ESP"},
+        {IPPROTO_AH, "AH"},
+        {IPPROTO_MTP, "MTP"},
+        {IPPROTO_BEETPH, "BEETPH"},
+        {IPPROTO_ENCAP, "ENCAP"},
+        {IPPROTO_PIM, "PIM"},
+        {IPPROTO_COMP, "COMP"},
+        {IPPROTO_L2TP, "L2TP"},
+        {IPPROTO_SCTP, "SCTP"},
+        {IPPROTO_UDPLITE, "UDPLITE"},
+        {IPPROTO_MPLS, "MPLS"},
+        {IPPROTO_ETHERNET, "ETHERNET"},
+        {IPPROTO_RAW, "RAW"},
+        {IPPROTO_MPTCP, "MPTCP"}
+    };
+
+    // Intentar encontrar el protocolo en el mapa
+    auto it = protocolMap.find(protocol);
+    if (it != protocolMap.end()) {
+        return it->second;  // Si lo encuentra, devuelve el texto correspondiente
+    }
+
+    // Si no lo encuentra, devolver el número de protocolo como cadena
+    return std::to_string(protocol);
+}
 
 void main_packet_data(WINDOW* win, vector<PacketData>& list, int option_index, int y, int width) {
     const struct ip* ip_header;   // Estructura para el encabezado IP
@@ -147,107 +190,16 @@ void main_packet_data(WINDOW* win, vector<PacketData>& list, int option_index, i
     inet_ntop(AF_INET, &(ip_header->ip_dst), dest_ip, INET_ADDRSTRLEN);   // IP de destino
 
     // Obtener protocolo
-    int protocol = ip_header->ip_p; // Campo ip_p contiene el número de protocolo (TCP, UDP, etc.)
-    string protText;
-    switch(protocol) {
-        case IPPROTO_TCP:
-            protText = "TCP";
-            break;
-        case IPPROTO_UDP:
-            protText = "UDP";
-            break;
-        case IPPROTO_ICMP:
-            protText = "ICMP";
-            break;
-        case IPPROTO_IP:
-            protText = "IP";
-            break;
-        case IPPROTO_IGMP:
-            protText = "IGMP";
-            break;
-        case IPPROTO_IPIP:
-            protText = "IPIP";
-            break;
-        case IPPROTO_EGP:
-            protText = "EGP";
-            break;
-        case IPPROTO_PUP:
-            protText = "PUP";
-            break;
-        case IPPROTO_IDP:
-            protText = "IDP";
-            break;
-        case IPPROTO_TP:
-            protText = "TP";
-            break;
-        case IPPROTO_DCCP:
-            protText = "DCCP";
-            break;
-        case IPPROTO_IPV6:
-            protText = "IPV6";
-            break;
-        case IPPROTO_RSVP:
-            protText = "RSVP";
-            break;
-        case IPPROTO_GRE:
-            protText = "GRE";
-            break;
-        case IPPROTO_ESP:
-            protText = "ESP";
-            break;
-        case IPPROTO_AH:
-            protText = "AH";
-            break;
-        case IPPROTO_MTP:
-            protText = "MTP";
-            break;
-        case IPPROTO_BEETPH:
-            protText = "BEETPH";
-            break;
-        case IPPROTO_ENCAP:
-            protText = "ENCAP";
-            break;
-        case IPPROTO_PIM:
-            protText = "PIM";
-            break;
-        case IPPROTO_COMP:
-            protText = "COMP";
-            break;
-        case IPPROTO_L2TP:
-            protText = "L2TP";
-            break;
-        case IPPROTO_SCTP:
-            protText = "SCTP";
-            break;
-        case IPPROTO_UDPLITE:
-            protText = "UDPLITE";
-            break;
-        case IPPROTO_MPLS:
-            protText = "MPLS";
-            break;
-        case IPPROTO_ETHERNET:
-            protText = "ETHERNET";
-            break;
-        case IPPROTO_RAW:
-            protText = "RAW";
-            break;
-        case IPPROTO_MPTCP:
-            protText = "MPTCP";
-            break;
-        default:
-            protText = to_string(protocol);
-            break;
-        
-    }
+    int protocol = ip_header->ip_p; // Campo ip_p contiene el número de protocolo (TCP, UDP, etc.)    
 
     // Obtener tamaño del paquete
     int packet_size = ntohs(ip_header->ip_len);
 
-    mvwprintw(win, y, 0, "%5d %11f  %-15s %-15s  %4s  %5d", option_index + 1, list[option_index].elapsed_seconds.count(), source_ip, dest_ip, protText.c_str(), list[option_index].length);
+    mvwprintw(win, y, 0, "%5d %11f  %-15s %-15s  %4s  %5d", option_index + 1, list[option_index].elapsed_seconds.count(), source_ip, dest_ip, GetProtocolText(protocol).c_str(), list[option_index].length);
 }
 
 void DrawRawData(WINDOW* win, vector<DataBlocks>& list, int option_index, int y, int width){
-    mvwprintw(win, y, 0, "%-48s  %-16s", list[option_index].hexData.c_str(), list[option_index].rawData.c_str());
+    mvwprintw(win, y, 0, "%-48s  %-16s", list[option_index].hexData.c_str(), list[option_index].asciiData.c_str());
 }
 
 void print_packet_info(WINDOW* win, vector<string>& list, int option_index, int y, int width) {
@@ -258,49 +210,19 @@ void DrawString(WINDOW* win, vector<string>& list, int option_index, int y, int 
     mvwprintw(win, y, 0, "%*s", -width ,list[option_index].c_str());
 }
 
-// void splitIntoBlocks(vector<DataBlocks>& blocks, vector<u_char>& data, bpf_u_int32 length) {
-//     //vector<DataBlocks> blocks; // Estructura para almacenar los bloques
+string getCurrentTimeString() {
+    // Obtener la fecha y hora actual
+    auto now = std::chrono::system_clock::now();
+    std::time_t now_time = std::chrono::system_clock::to_time_t(now);
 
-//     u_char *data_ptr = data.data();
+    // Convertir a formato legible
+    std::tm tm_time = *std::localtime(&now_time);
 
-//     // Iterar sobre el vector en bloques de 16 bytes
-//     for (size_t i = 0; i < length; i += 16) {
-//         DataBlocks block;
-//         stringstream hexStream; // stringstream para almacenar el bloque en hexadecimal
-//         stringstream rawStream; // stringstream para almacenar el bloque en formato "raw"
+    // Crear un stringstream para formatear la fecha y hora
+    std::stringstream ss;
+    ss << std::put_time(&tm_time, "%Y-%m-%d_%H-%M-%S");
 
-//         // Obtener el bloque actual de 16 bytes
-//         for (size_t j = i; j < i + 16 && j < length; ++j) {
-//             // Formatear y añadir a la lista en hexadecimal
-//             hexStream << hex << setw(2) << setfill('0') << static_cast<int>(data_ptr[j]) << " ";
-//             // Añadir al raw stream
-            
-//             if(data_ptr[j] >= 32 &&  data_ptr[j] <= 126)
-//                 rawStream << (unsigned char)data_ptr[j];
-//             else 
-//                 rawStream << '.';
-//         }
-//         // mvwprintw(subw.win, y, 0, "%-48s  %-16s", hexStream.str(), rawStream.str());
-//         // mvwprintw(subw.win, y, 0, "%d", data.size());
-//         block.hexData = hexStream.str();
-//         block.rawData = rawStream.str();
-
-//         // Guardar las cadenas formateadas en sus respectivas listas
-//         blocks.push_back(block);
-//         // blocks.rawData.push_back(rawStream.str());
-//     }
-// }
+    return ss.str();
+}
 
 MainList* mainList;
-// // std::unique_ptr<DerList<DataBlocks>> rawList;
-
-// void CreateSecLists(vector<u_char>& data, bpf_u_int32 length) {
-//     vector<DataBlocks> blocks;
-//     splitIntoBlocks(blocks, data, length);
-//     rawList = std::make_unique<DerList<DataBlocks>>(win3->subw, blocks, draw_rawData);
-//     rawList->subw.erase();
-//     rawList->draw_list();
-//     // win2->erase();
-//     // mvwprintw(win2->win, 0, 0, "%d", rawList->list.size());
-//     // win2->refresh();
-// }

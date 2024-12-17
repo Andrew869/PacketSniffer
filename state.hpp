@@ -5,7 +5,11 @@
 
 #define KEY_F1 265
 #define KEY_TTAB 9
-#define KEY_BTAB 353 
+#define KEY_BTAB 353
+#define KEY_CTRL_S 19 
+
+void save_to_csv();
+void save_to_excel();
 
 struct ShortCuts{
     string key;
@@ -38,6 +42,7 @@ public:
         UpdateMenu();
         for(auto var : windows) {
             var->DrawBorder();
+            var->SetTitle();
             var->DrawSubWindow();
         }
     }
@@ -76,7 +81,7 @@ public:
             string tmp = ' ' + shortcut.key + ": " + shortcut.desc + ' ';
             wattron(menuWin->win, A_REVERSE);
             wprintw(menuWin->win, "%s", tmp.c_str());
-            wmove(menuWin->win, 0, getcurx(menuWin->win) + 2);
+            wmove(menuWin->win, 0, getcurx(menuWin->win) + 1);
         }
         menuWin->refresh();
     }
@@ -90,29 +95,14 @@ public:
 class StateM : public State{
 public:
     StateM(vector<BaseParentWin*> windows) : State(windows){
-        // menuOptions.insert({"help", {"<F1> help", {KEY_F1}}});
-        // menuOptions.insert({"up", {"<Up> Select prev", {'W', 'w', KEY_UP}}});
-        // menuOptions.insert({"down", {"<Down> Select next", {'S', 's', KEY_DOWN}}});
-        // menuOptions.insert({"focus-prev", {"<shift + TAB> focus prev", {KEY_BTAB}}});
-        // menuOptions.insert({"focus-next", {"<TAB> focus next", {KEY_TTAB}}});
-        // menuOptions.insert({"start-stop", {"<P> start capturing", {'P', 'p'}}});
-        // menuOptions.insert({"filters", {"<F> Filters", {'F', 'f'}}});
-
-        // menuOptions.insert({"help", {"F1", "help"}});
-        // menuOptions.insert({"start-stop", {"P", "start capturing"}});
-        // menuOptions.insert({"filters", {"F", "Filters"}});
-        // menuOptions.insert({"up", {"Up", "Select prev"}});
-        // menuOptions.insert({"down", {"Down", "Select next"}});
-        // menuOptions.insert({"focus-prev", {"shift + tab", "focus prev"}});
-        // menuOptions.insert({"focus-next", {"Tab", "change focus"}});
-
-        menuOptions.push_back({"F1", "help"});
-        menuOptions.push_back({"P", "start capturing"});
+        menuOptions.push_back({"F1", "Help"});
+        menuOptions.push_back({"P", "Start capturing"});
         menuOptions.push_back({"F", "Filters"});
+        menuOptions.push_back({"ctrl + S", "Save log"});
         menuOptions.push_back({"Up", "Select prev"});
         menuOptions.push_back({"Down", "Select next"});
         // menuOptions.push_back({"shift + tab", "focus prev"});
-        menuOptions.push_back({"Tab", "change focus"});
+        menuOptions.push_back({"Tab", "Change focus"});
     }
     void HandleKeyPress(short& currentState, int keyPressed) override {
         switch (keyPressed) {
@@ -170,6 +160,11 @@ public:
                     menuOptions[1].desc = "stop capturing";
                     UpdateMenu();
                 }
+                break;
+            case KEY_CTRL_S:
+                save_to_csv();
+                save_to_excel();
+                conWin->PrintM("Logs saved successfully");
                 break;
         }
         // if(currentWin >= windows.size())
@@ -245,6 +240,7 @@ public:
         packetCapture->SetFilters(input);
         menuOptions[1].desc = "continue";
         UpdateMenu();
+        conWin->PrintM("filter set successfully: %s", input.c_str());
     }
 
     void EndState() override {

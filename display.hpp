@@ -9,6 +9,11 @@
 //     void (*ListGenerator)(vector<T>*) = nullptr;
 // };
 
+struct Title {
+    int x;
+    string text;
+};
+
 class Window {
 public:
     Window(int height, int width, int y, int x){
@@ -95,10 +100,18 @@ public:
 
 class BaseParentWin : public Window {
 public:
-    BaseParentWin(int height, int width, int y, int x) 
-        : Window(height, width, y, x) {}
+    BaseParentWin(int height, int width, int y, int x, vector<Title> *title) : Window(height, width, y, x), title(title) {
+        // SetTitle(title);
+    }
 
     virtual ~BaseParentWin() {}
+
+    void SetTitle() {
+        for(auto &var : (*title)) {
+            mvwprintw(this->win, 0, var.x, var.text.c_str());
+            this->refresh();
+        }
+    }
 
     // virtual void CreateWin(WINDOW* win) = 0;
     virtual void DrawBorder() = 0;
@@ -115,6 +128,8 @@ public:
     // virtual void EnableTypeMode() = 0;
     virtual string EnableTypeMode() = 0;
     // virtual char* GetInput() = 0;
+
+    vector<Title> *title;
 };
 
 BasicWin *menuWin, *mainWin, *conWin;
@@ -122,12 +137,12 @@ BasicWin *menuWin, *mainWin, *conWin;
 template<typename T>
 class ParentWin : public BaseParentWin {
 public:
-    ParentWin(int height, int width, int y, int x) : BaseParentWin(height, width, y, x), subw(height - 2, width - 2, 1, 1){
+    ParentWin(int height, int width, int y, int x, vector<Title> *title) : BaseParentWin(height, width, y, x, title), subw(height - 2, width - 2, 1, 1){
         this->win = derwin(mainWin->win, height, width, y, x);
         subw.SetSub(this->win);
     }
 
-    ParentWin(int height, int width, int y, int x, void (*ListManager)(WINDOW*, vector<T>&, int, int, int)) : BaseParentWin(height, width, y, x), subw(height - 2, width - 2, 1, 1, ListManager){
+    ParentWin(int height, int width, int y, int x, vector<Title> *title, void (*ListManager)(WINDOW*, vector<T>&, int, int, int)) : BaseParentWin(height, width, y, x, title), subw(height - 2, width - 2, 1, 1, ListManager){
         this->win = derwin(mainWin->win, height, width, y, x);
         subw.SetSub(this->win);
         list = new vector<T>;
@@ -318,8 +333,6 @@ void EndDisplay() {
     printf("bye bye\n");
     // exit(0);
 }
-
-// ParentWin *win1, *win2, *win3, *win4;
 
 void PrintTitles(){
     //         1         2         3         4         5         6         7 

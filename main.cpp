@@ -12,7 +12,9 @@ void packetManager(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char 
 // void *threadpcap(void *arg);
 void MainLoop();
 void GetDevices(vector<string>* devs);
+void GetstructuredData(vector<string>* list, const PacketData &packetData);
 void GetstructuredData(vector<string>* list);
+void splitIntoBlocks(vector<DataBlocks>* list, const PacketData &packetData);
 void splitIntoBlocks(vector<DataBlocks>* list);
 // void SetupPCAP(const char* devname);
 template <typename T> ParentWin<T>* GetParentWin(BaseParentWin* baseParentWin);
@@ -49,7 +51,7 @@ int main(int argc, char const *argv[]) {
     menuWin->refresh();
     mainWin = new BasicWin(max_y - 2, max_x, 1, 0);
     conWin = new BasicWin(1, max_x, max_y - 1, 0);
-    mvwprintw(conWin->win, 0, 0, "Hello Console!");
+    mvwprintw(conWin->win, 0, 0, "Ready to capture!");
     conWin->refresh();
 
     packetCapture = new PacketCapture();
@@ -69,13 +71,52 @@ int main(int argc, char const *argv[]) {
 
 
     State::states.push_back(new StateM({
-        new ParentWin(half_height, half_width, 0, 0, main_packet_data),
-        new ParentWin(mHeight - half_height, half_width, half_height, 0, print_packet_info),
-        new ParentWin(mHeight, mWidth - half_width, 0, half_width, DrawRawData)
+        new ParentWin(
+            half_height, half_width, 0, 0, 
+            new vector<Title>({
+                Title{2, "[No.]"},
+                Title{9, "[Time]"},
+                Title{20, "[Source]"},
+                Title{36, "[Destination]"},
+                Title{52, "[Prot]"},
+                Title{60, "[Len]"}
+            }),
+            main_packet_data
+        ),
+        new ParentWin(
+            mHeight - half_height, half_width, half_height, 0,
+            new vector<Title>({
+                Title{2, "[Structured Data]"}
+            }),
+            print_packet_info
+        ),
+        new ParentWin(
+            mHeight, mWidth - half_width, 0, half_width,
+            new vector<Title>({
+                Title{2, "[Raw Data]"}
+            }),
+            DrawRawData
+        )
     }));
 
-    State::states.emplace_back(new StateI({new ParentWin(half_height, 18, 0, 0, DrawString)}));
-    State::states.emplace_back(new StateF({new ParentWin<string>(3, mWidth, 0, 0)}));
+    State::states.emplace_back(new StateI({
+        new ParentWin(
+            half_height, 30, 0, 0,
+            new vector<Title>({
+                Title{2, "[Select Interface]"}
+            }),
+            DrawString
+        )
+    }));
+
+    State::states.emplace_back(
+        new StateF({new ParentWin<string>(
+            3, mWidth, 0, 0,
+            new vector<Title>({
+                Title{2, "[Type new filter rules]"}
+            })
+        )
+    }));
 
     auto sIw0 = GetParentWin<string>(State::states[STATE_I]->windows[0]);
 
@@ -180,39 +221,50 @@ void GetDevices(vector<string>* devs){
 }
 
 // Procesa un packete para poder mostrarlo en modo "RAW"
-void splitIntoBlocks(vector<DataBlocks>* list) {
+void splitIntoBlocks(vector<DataBlocks>* list, const PacketData &packetdata) {
     list->clear(); // Limpiar cualquier dato anterior
 
-    u_char *data_ptr = (*packets)[(*packetIndex)].data.data();
-    bpf_u_int32 len = (*packets)[(*packetIndex)].length;
+    // u_char *data_ptr = (*packets)[(*packetIndex)].data.data();
+    // bpf_u_int32 len = (*packets)[(*packetIndex)].length;
+
+    const u_char *data_ptr = packetdata.data.data();
+    bpf_u_int32 len = packetdata.length;
+
 
     for (size_t i = 0; i < len; i += 16) {
         DataBlocks block;
-        std::stringstream hexStream, rawStream;
+        std::stringstream hexStream, asciiData;
 
         for (size_t j = i; j < i + 16 && j < len; ++j) {
             hexStream << std::hex << std::setw(2) << std::setfill('0') 
                     << static_cast<int>(data_ptr[j]) << " ";
 
             if (data_ptr[j] >= 32 && data_ptr[j] <= 126)
-                rawStream << static_cast<unsigned char>(data_ptr[j]);
+                asciiData << static_cast<unsigned char>(data_ptr[j]);
             else 
-                rawStream << '.';
+                asciiData << '.';
         }
 
         block.hexData = hexStream.str();
-        block.rawData = rawStream.str();
+        block.asciiData = asciiData.str();
         list->push_back(block);
     }
 }
 
+void splitIntoBlocks(vector<DataBlocks>* list){
+    PacketData packet = (*packets)[(*packetIndex)];
+    splitIntoBlocks(list, packet);
+}
 
 //Procesa un paquete para mostrarlo estructuradamente
-void GetstructuredData(vector<string>* list) {
+void GetstructuredData(vector<string>* list, const PacketData &packetdata) {
     list->clear();
     
-    u_char *data_ptr = (*packets)[(*packetIndex)].data.data();
-    bpf_u_int32 len = (*packets)[(*packetIndex)].length;
+    // u_char *data_ptr = (*packets)[(*packetIndex)].data.data();
+    // bpf_u_int32 len = (*packets)[(*packetIndex)].length;
+
+    const u_char *data_ptr = packetdata.data.data();
+    bpf_u_int32 len = packetdata.length;
 
     // Cabecera Ethernet
     if (len >= sizeof(struct ethhdr)) {
@@ -289,6 +341,144 @@ void GetstructuredData(vector<string>* list) {
     } else {
         list->push_back( "Incomplete IP Header");
     }
+}
+
+void GetstructuredData(vector<string>* list) {
+    PacketData packet = (*packets)[(*packetIndex)];
+    GetstructuredData(list, packet);
+}
+
+void save_to_csv() {
+    string timestamp = getCurrentTimeString();
+
+    string filename = "log_" + timestamp + ".csv";
+    ofstream file(filename);
+
+    if (!file.is_open()) {
+        cerr << "Error: No se pudo abrir el archivo para escritura\n";
+        return;
+    }
+
+    // Encabezados
+    file << "Packet No,Time,Source IP,Destination IP,Protocol,Length,Hex Data,Ascii Data,Info\n";
+
+    int index = 1;
+    for (const auto& packet : (*packets)) {
+
+        // Generar bloques asciiData e información
+        vector<DataBlocks>* rawBlocks = new vector<DataBlocks>;
+        splitIntoBlocks(rawBlocks, packet);
+
+        vector<string>* info = new vector<string>;
+        GetstructuredData(info, packet);
+
+        // Extraer información básica del paquete
+        const struct ip* ip_header = (struct ip*)(packet.data.data() + 14);
+        char source_ip[INET_ADDRSTRLEN];
+        char dest_ip[INET_ADDRSTRLEN];
+
+        inet_ntop(AF_INET, &(ip_header->ip_src), source_ip, INET_ADDRSTRLEN);
+        inet_ntop(AF_INET, &(ip_header->ip_dst), dest_ip, INET_ADDRSTRLEN);
+
+        int protocol = ip_header->ip_p; // Campo ip_p contiene el número de protocolo (TCP, UDP, etc.)    
+
+        // Escribir los encabezados generales del paquete
+        file << index++ << ",";
+        file << packet.elapsed_seconds.count() << ",";
+        file << source_ip << ",";
+        file << dest_ip << ",";
+        file << GetProtocolText(protocol) << ",";
+        file << packet.length << ",";
+
+        // Escribir el asciiData y hexData (concatenados en una sola línea)
+        string hexDataCombined, asciiDataCombined;
+        for (const auto& block : (*rawBlocks)) {
+            hexDataCombined += block.hexData + " ";
+            asciiDataCombined += block.asciiData + " ";
+        }
+
+        file << "\"" << hexDataCombined << "\",";
+        file << "\"" << asciiDataCombined << "\",";
+
+        // Escribir la información (getInfo) en múltiples líneas
+        string infoCombined;
+        for (const auto& line : (*info)) {
+            infoCombined += line + " | ";
+        }
+        file << "\"" << infoCombined << "\"\n";
+    }
+
+    file.close();
+}
+
+void save_to_excel() {
+    string timestamp = getCurrentTimeString();
+
+    string filename = "log_" + timestamp + ".xlsx";
+
+    lxw_workbook *workbook = workbook_new(filename.c_str());
+    lxw_worksheet *worksheet = workbook_add_worksheet(workbook, NULL);
+
+    // Definir encabezados
+    worksheet_write_string(worksheet, 0, 0, "Packet No", NULL);
+    worksheet_write_string(worksheet, 0, 1, "Time", NULL);
+    worksheet_write_string(worksheet, 0, 2, "Source IP", NULL);
+    worksheet_write_string(worksheet, 0, 3, "Destination IP", NULL);
+    worksheet_write_string(worksheet, 0, 4, "Protocol", NULL);
+    worksheet_write_string(worksheet, 0, 5, "Length", NULL);
+    worksheet_write_string(worksheet, 0, 6, "Hex Data", NULL);
+    worksheet_write_string(worksheet, 0, 7, "Raw Data", NULL);
+    worksheet_write_string(worksheet, 0, 8, "Info", NULL);
+
+    int index = 0;
+    for (const auto& packet : (*packets)) {
+        index++;
+        // Generar bloques asciiData e información
+        vector<DataBlocks>* rawBlocks = new vector<DataBlocks>;
+        splitIntoBlocks(rawBlocks, packet);
+
+        vector<string>* info = new vector<string>;
+        GetstructuredData(info, packet);
+
+
+        // Extraer IPs
+        const struct ip* ip_header = (struct ip*)(packet.data.data() + 14);
+        char source_ip[INET_ADDRSTRLEN];
+        char dest_ip[INET_ADDRSTRLEN];
+
+        inet_ntop(AF_INET, &(ip_header->ip_src), source_ip, INET_ADDRSTRLEN);
+        inet_ntop(AF_INET, &(ip_header->ip_dst), dest_ip, INET_ADDRSTRLEN);
+
+        // Protocolo
+       int protocol = ip_header->ip_p; // Campo ip_p contiene el número de protocolo (TCP, UDP, etc.)
+
+        // Combinar rawData y hexData
+        string hexDataCombined, rawDataCombined;
+        for (const auto& block : (*rawBlocks)) {
+            hexDataCombined += block.hexData + " ";
+            rawDataCombined += block.asciiData + " ";
+        }
+
+        // Combinar la información
+        string infoCombined;
+        for (const auto& line : (*info)) {
+            infoCombined += line + " | ";
+        }
+
+        // Escribir datos en la hoja
+        worksheet_write_number(worksheet, index, 0, index, NULL);
+        worksheet_write_number(worksheet, index, 1, packet.elapsed_seconds.count(), NULL);
+        worksheet_write_string(worksheet, index, 2, source_ip, NULL);
+        worksheet_write_string(worksheet, index, 3, dest_ip, NULL);
+        worksheet_write_string(worksheet, index, 4, GetProtocolText(protocol).c_str(), NULL);
+        worksheet_write_number(worksheet, index, 5, packet.length, NULL);
+        worksheet_write_string(worksheet, index, 6, hexDataCombined.c_str(), NULL);
+        worksheet_write_string(worksheet, index, 7, rawDataCombined.c_str(), NULL);
+        worksheet_write_string(worksheet, index, 8, infoCombined.c_str(), NULL);
+    }
+
+    // Guardar y cerrar el libro de Excel
+    workbook_close(workbook);
 }
 
 template <typename T>
